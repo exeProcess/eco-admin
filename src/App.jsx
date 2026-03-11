@@ -1,107 +1,6 @@
 import EcoLogo from './assets/eco.png'
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import api from "./api.js";
-
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-const MOCK = {
-  dashboard: { activeTrips: 14, activeDrivers: 38, totalRiders: 4821, totalDrivers: 342, dailyRevenue: 487200, dailyTrips: 203, pendingRefunds: 7, openTickets: 12, lifetimeCo2Grams: 4872400, generatedAt: new Date().toISOString() },
-  analytics: { revenueData: [{ date:"2025-10-15", revenue:312000 },{ date:"2025-10-16", revenue:428500 },{ date:"2025-10-17", revenue:389000 },{ date:"2025-10-18", revenue:512300 },{ date:"2025-10-19", revenue:298700 },{ date:"2025-10-20", revenue:187400 },{ date:"2025-10-21", revenue:621000 },{ date:"2025-10-22", revenue:487200 }], tripsData:[{ status:"completed", count:1840 },{ status:"cancelled", count:124 },{ status:"in_progress", count:14 },{ status:"requested", count:8 }], lifetimeCo2Grams:4872400 },
-  trips: [
-    { id:"tr-001", rider:{user:{firstName:"Amaka",lastName:"Okonkwo"}}, driver:{user:{firstName:"Emeka",lastName:"Chukwu"}}, pickupAddress:"No 28 Sunrise Hill Estate, Asokoro", dropoffAddress:"Guards Polo Club, Asokoro", status:"completed", rideClass:"eco", totalFare:2300, co2SavedGrams:150, distanceKm:8.2, createdAt:"2025-10-31T17:20:00Z" },
-    { id:"tr-002", rider:{user:{firstName:"Chidi",lastName:"Eze"}}, driver:{user:{firstName:"Bello",lastName:"Abdullahi"}}, pickupAddress:"Nile University, Jabi", dropoffAddress:"Transcorp Hilton, Maitama", status:"in_progress", rideClass:"executive", totalFare:5900, co2SavedGrams:280, distanceKm:12.4, createdAt:"2025-10-31T17:05:00Z" },
-    { id:"tr-003", rider:{user:{firstName:"Ngozi",lastName:"Adeyemi"}}, driver:null, pickupAddress:"Wuse Market, Abuja", dropoffAddress:"Nnamdi Azikiwe Airport", status:"requested", rideClass:"eco", totalFare:4200, co2SavedGrams:0, distanceKm:18.6, createdAt:"2025-10-31T17:32:00Z" },
-    { id:"tr-004", rider:{user:{firstName:"Tunde",lastName:"Fashola"}}, driver:{user:{firstName:"Yusuf",lastName:"Musa"}}, pickupAddress:"62 Lobito Crescent, Wuse", dropoffAddress:"Sahad Stores, Garki", status:"cancelled", rideClass:"eco", totalFare:0, co2SavedGrams:0, distanceKm:5.1, createdAt:"2025-10-31T16:58:00Z" },
-    { id:"tr-005", rider:{user:{firstName:"Fatima",lastName:"Ibrahim"}}, driver:{user:{firstName:"Chukwuemeka",lastName:"Obi"}}, pickupAddress:"Guzape Hills, Abuja", dropoffAddress:"Camel Blue Energy Station", status:"completed", rideClass:"executive", totalFare:8400, co2SavedGrams:420, distanceKm:21.0, createdAt:"2025-10-31T15:45:00Z" },
-    { id:"tr-006", rider:{user:{firstName:"Suleiman",lastName:"Abubakar"}}, driver:{user:{firstName:"Idris",lastName:"Waziri"}}, pickupAddress:"Kado Estate, Abuja", dropoffAddress:"EV World, CBD", status:"completed", rideClass:"eco", totalFare:3100, co2SavedGrams:186, distanceKm:10.4, createdAt:"2025-10-31T14:20:00Z" },
-    { id:"tr-007", rider:{user:{firstName:"Chioma",lastName:"Nwosu"}}, driver:{user:{firstName:"Emeka",lastName:"Chukwu"}}, pickupAddress:"Wuse 2, Abuja", dropoffAddress:"Gimbiya Street, Garki", status:"driver_arrived", rideClass:"eco", totalFare:1800, co2SavedGrams:0, distanceKm:4.2, createdAt:"2025-10-31T17:38:00Z" },
-  ],
-  activeTrips: [
-    { id:"tr-002", rider:{user:{firstName:"Chidi",lastName:"Eze"}}, driver:{user:{firstName:"Bello",lastName:"Abdullahi"}}, pickupAddress:"Nile University, Jabi", dropoffAddress:"Transcorp Hilton, Maitama", status:"in_progress", totalFare:5900, distanceKm:12.4, createdAt:"2025-10-31T17:05:00Z" },
-    { id:"tr-007", rider:{user:{firstName:"Chioma",lastName:"Nwosu"}}, driver:{user:{firstName:"Emeka",lastName:"Chukwu"}}, pickupAddress:"Wuse 2, Abuja", dropoffAddress:"Gimbiya Street, Garki", status:"driver_arrived", totalFare:1800, distanceKm:4.2, createdAt:"2025-10-31T17:38:00Z" },
-  ],
-  onlineDrivers: [
-    { id:"dr-001", user:{firstName:"Emeka",lastName:"Chukwu",email:"emeka@eco.ng",phone:"0801234567"}, status:"on_trip", averageRating:4.9, totalTrips:847, vehicles:[{model:"BYD E5",licensePlate:"ABJ 64 AE"}] },
-    { id:"dr-002", user:{firstName:"Bello",lastName:"Abdullahi",email:"bello@eco.ng",phone:"0809876543"}, status:"online", averageRating:4.7, totalTrips:612, vehicles:[{model:"Nissan Leaf",licensePlate:"ABJ 12 KK"}] },
-  ],
-  drivers: [
-    { id:"dr-001", user:{firstName:"Emeka",lastName:"Chukwu",email:"emeka@eco.ng"}, status:"on_trip", isApproved:true, averageRating:4.9, totalTrips:847, totalEarnings:1284600, acceptanceRate:94, reward:{tier:"gold"}, vehicles:[{model:"BYD E5",licensePlate:"ABJ 64 AE"}], licenseNumber:"ABJ-DL-001234", licenseExpiry:"2026-12-31" },
-    { id:"dr-002", user:{firstName:"Bello",lastName:"Abdullahi",email:"bello@eco.ng"}, status:"online", isApproved:true, averageRating:4.7, totalTrips:612, totalEarnings:892400, acceptanceRate:88, reward:{tier:"silver"}, vehicles:[{model:"Nissan Leaf",licensePlate:"ABJ 12 KK"}], licenseNumber:"ABJ-DL-002345", licenseExpiry:"2027-03-15" },
-    { id:"dr-003", user:{firstName:"Yusuf",lastName:"Musa",email:"yusuf@eco.ng"}, status:"offline", isApproved:true, averageRating:4.8, totalTrips:1240, totalEarnings:2104800, acceptanceRate:91, reward:{tier:"platinum"}, vehicles:[{model:"Tesla Model 3",licensePlate:"ABJ 98 GH"}], licenseNumber:"ABJ-DL-003456", licenseExpiry:"2025-11-30" },
-    { id:"dr-004", user:{firstName:"Chukwuemeka",lastName:"Obi",email:"chuks@eco.ng"}, status:"online", isApproved:true, averageRating:4.6, totalTrips:389, totalEarnings:542000, acceptanceRate:85, reward:{tier:"bronze"}, vehicles:[{model:"BYD Atto 3",licensePlate:"ABJ 55 QR"}], licenseNumber:"ABJ-DL-004567", licenseExpiry:"2026-08-20" },
-    { id:"dr-005", user:{firstName:"Hauwa",lastName:"Garba",email:"hauwa@eco.ng"}, status:"offline", isApproved:false, averageRating:0, totalTrips:0, totalEarnings:0, acceptanceRate:0, reward:{tier:"bronze"}, vehicles:[{model:"Hyundai Ioniq 5",licensePlate:"ABJ 31 TY"}], licenseNumber:"ABJ-DL-005678", licenseExpiry:"2027-01-10" },
-    { id:"dr-006", user:{firstName:"Biodun",lastName:"Adewale",email:"biodun@eco.ng"}, status:"offline", isApproved:false, averageRating:0, totalTrips:0, totalEarnings:0, acceptanceRate:0, reward:{tier:"bronze"}, vehicles:[{model:"BYD E5",licensePlate:"KJA 77 AB"}], licenseNumber:"KJA-DL-006789", licenseExpiry:"2026-05-25" },
-  ],
-  riders: [
-    { id:"rd-001", user:{firstName:"Amaka",lastName:"Okonkwo",email:"amaka@gmail.com",phone:"0803456789",isActive:true}, totalTrips:42, totalSpend:96600, totalCo2SavedGrams:2730, createdAt:"2024-03-15T10:00:00Z" },
-    { id:"rd-002", user:{firstName:"Chidi",lastName:"Eze",email:"chidi@gmail.com",phone:"0805678901",isActive:true}, totalTrips:18, totalSpend:41400, totalCo2SavedGrams:1170, createdAt:"2024-06-20T10:00:00Z" },
-    { id:"rd-003", user:{firstName:"Ngozi",lastName:"Adeyemi",email:"ngozi@gmail.com",phone:"0807890123",isActive:false}, totalTrips:67, totalSpend:154100, totalCo2SavedGrams:4355, createdAt:"2024-01-08T10:00:00Z" },
-  ],
-  fareRules: [
-    { id:"fr-001", name:"Eco Standard", rideClass:"eco", baseFare:1000, perKmRate:150, perMinuteRate:20, waitTimePerMinuteRate:15, surgeMultiplier:1.0, minimumFare:1700, cancellationFee:500, taxRate:0.025, isActive:true },
-    { id:"fr-002", name:"Executive Plus", rideClass:"executive", baseFare:1000, perKmRate:350, perMinuteRate:40, waitTimePerMinuteRate:30, surgeMultiplier:1.0, minimumFare:1700, cancellationFee:2000, taxRate:0.025, isActive:true },
-  ],
-  surgeRules: [
-    { id:"sr-001", name:"Morning Rush", multiplier:1.3, startHour:7, endHour:9, demandThreshold:20, isActive:true },
-    { id:"sr-002", name:"Evening Rush", multiplier:1.5, startHour:17, endHour:20, demandThreshold:25, isActive:true },
-    { id:"sr-003", name:"Late Night", multiplier:1.2, startHour:23, endHour:4, demandThreshold:10, isActive:false },
-  ],
-  payments: [
-    { id:"py-001", rider:{user:{firstName:"Amaka",lastName:"Okonkwo"}}, amount:2300, method:"cash", status:"completed", driverEarnings:1840, platformFee:460, createdAt:new Date().toISOString() },
-    { id:"py-002", rider:{user:{firstName:"Chidi",lastName:"Eze"}}, amount:5900, method:"card", status:"pending", driverEarnings:4720, platformFee:1180, createdAt:new Date().toISOString() },
-    { id:"py-003", rider:{user:{firstName:"Fatima",lastName:"Ibrahim"}}, amount:8400, method:"wallet", status:"completed", driverEarnings:6720, platformFee:1680, createdAt:new Date().toISOString() },
-    { id:"py-004", rider:{user:{firstName:"Suleiman",lastName:"Abubakar"}}, amount:3100, method:"cash", status:"completed", driverEarnings:2480, platformFee:620, createdAt:new Date().toISOString() },
-  ],
-  refunds: [
-    { id:"rf-001", amount:2300, reason:"Driver cancelled after 15 minutes of waiting", type:"auto", status:"pending", createdAt:"2025-10-31T16:00:00Z" },
-    { id:"rf-002", amount:5900, reason:"Charged wrong fare — Executive rate applied to Eco booking", type:"manual", status:"pending", createdAt:"2025-10-30T11:20:00Z" },
-    { id:"rf-003", amount:1800, reason:"App crash during ride — passenger wasn't picked up", type:"auto", status:"approved", createdAt:"2025-10-29T09:15:00Z" },
-    { id:"rf-004", amount:3400, reason:"Passenger requested cancellation within 2 minutes", type:"manual", status:"rejected", createdAt:"2025-10-28T14:40:00Z" },
-  ],
-  promotions: [
-    { id:"pr-001", code:"NEW123", name:"20% off first 3 rides", discountType:"percentage", discountValue:20, maxDiscount:2000, usageLimit:null, totalRedeemed:1284, expiresAt:"2025-11-30T00:00:00Z", isActive:true },
-    { id:"pr-002", code:"XMAS", name:"₦2,000 off Xmas day", discountType:"fixed", discountValue:2000, maxDiscount:2000, usageLimit:500, totalRedeemed:187, expiresAt:"2025-12-25T23:59:00Z", isActive:true },
-  ],
-  tickets: [
-    { id:"tk-001", subject:"Driver didn't show up at pickup", description:"I waited 20 minutes but the driver never arrived. I was charged a wait time fee.", user:{firstName:"Ngozi",lastName:"Adeyemi"}, priority:"high", status:"open", channel:"app_chat", createdAt:"2025-10-31T16:30:00Z", thread:[] },
-    { id:"tk-002", subject:"Wrong fare charged for Eco ride", description:"Was charged Executive rate when I booked Eco.", user:{firstName:"Tunde",lastName:"Fashola"}, priority:"urgent", status:"in_progress", channel:"email", createdAt:"2025-10-30T11:00:00Z", thread:[{from:"admin",message:"We are investigating this.",timestamp:"2025-10-30T12:00:00Z"}] },
-    { id:"tk-003", subject:"App crashes when booking scheduled ride", description:"Every time I try to schedule a ride more than 2 days in advance, the app crashes.", user:{firstName:"Chioma",lastName:"Nwosu"}, priority:"medium", status:"open", channel:"app_chat", createdAt:"2025-10-29T08:00:00Z", thread:[] },
-    { id:"tk-004", subject:"Promo code NEW123 not working", description:"I tried applying code NEW123 but it says invalid.", user:{firstName:"Chidi",lastName:"Eze"}, priority:"low", status:"resolved", channel:"email", createdAt:"2025-10-28T15:00:00Z", thread:[] },
-  ],
-  team: [
-    { id:"adm-001", firstName:"Super", lastName:"Admin", email:"admin@eco.com", role:{id:"r-001",name:"superadmin",permissions:[]}, isActive:true, lastLogin:"2025-10-31T17:00:00Z" },
-    { id:"adm-002", firstName:"Kemi", lastName:"Oladele", email:"kemi@eco.com", role:{id:"r-002",name:"ops",permissions:[]}, isActive:true, lastLogin:"2025-10-31T09:30:00Z" },
-    { id:"adm-003", firstName:"Ola", lastName:"Bankole", email:"ola@eco.com", role:{id:"r-003",name:"finance",permissions:[]}, isActive:true, lastLogin:"2025-10-30T16:20:00Z" },
-    { id:"adm-004", firstName:"Zara", lastName:"Ahmed", email:"zara@eco.com", role:{id:"r-004",name:"support",permissions:[]}, isActive:true, lastLogin:"2025-10-31T14:00:00Z" },
-    { id:"adm-005", firstName:"Mike", lastName:"Onah", email:"mike@eco.com", role:{id:"r-005",name:"readonly",permissions:[]}, isActive:false, lastLogin:"2025-10-01T10:00:00Z" },
-  ],
-  auditLogs: [
-    { id:"al-001", admin:{firstName:"Super",lastName:"Admin"}, action:"DRIVER_APPROVED", resource:"Driver", resourceId:"dr-003", createdAt:"2025-10-31T10:00:00Z" },
-    { id:"al-002", admin:{firstName:"Kemi",lastName:"Oladele"}, action:"FARE_RULE_UPDATED", resource:"FareRule", resourceId:"fr-001", createdAt:"2025-10-30T15:30:00Z" },
-    { id:"al-003", admin:{firstName:"Ola",lastName:"Bankole"}, action:"REFUND_APPROVED", resource:"Refund", resourceId:"rf-003", createdAt:"2025-10-29T11:00:00Z" },
-    { id:"al-004", admin:{firstName:"Zara",lastName:"Ahmed"}, action:"TICKET_RESOLVED", resource:"SupportTicket", resourceId:"tk-004", createdAt:"2025-10-28T17:00:00Z" },
-    { id:"al-005", admin:{firstName:"Super",lastName:"Admin"}, action:"ADMIN_INVITED", resource:"Admin", resourceId:"adm-005", createdAt:"2025-10-01T09:00:00Z" },
-  ],
-  co2Analytics: { config:{iceEmissionGramsPerKm:120,evEmissionGramsPerKm:0,gramsPerTreePerYear:21000}, totalCo2SavedGrams:4872400, totalCo2SavedKg:4872.4, treeEquivalent:232.0, totalEcoTrips:2048, avgCo2GramsPerTrip:2379 },
-  ecoPlusOverview: { totalActive:847, newSubscribers:{today:12,thisWeek:84,thisMonth:312}, cancelled:43, totalRevenueNaira:4235000, mrrNaira:4235000 },
-  ecoPlusPlans: [
-    { id:"pl-001", name:"Eco+ Monthly", description:"Monthly access to premium eco rides", priceKobo:500000, intervalDays:30, discountPct:15, priorityRides:true, benefits:["15% off every ride","Priority matching","No surge pricing"], isActive:true },
-    { id:"pl-002", name:"Eco+ Annual", description:"Best value — 2 months free", priceKobo:5000000, intervalDays:365, discountPct:20, priorityRides:true, benefits:["20% off every ride","Priority matching","No surge pricing","Free cancellations"], isActive:true },
-  ],
-  ecoPlusSubs: [
-    { id:"sub-001", plan:{name:"Eco+ Monthly"}, rider:{user:{firstName:"Amaka",lastName:"Okonkwo",email:"amaka@gmail.com"}}, status:"active", startsAt:"2025-10-01T00:00:00Z", nextBillingAt:"2025-11-01T00:00:00Z", totalBilled:500000 },
-    { id:"sub-002", plan:{name:"Eco+ Annual"}, rider:{user:{firstName:"Chidi",lastName:"Eze",email:"chidi@gmail.com"}}, status:"active", startsAt:"2025-09-15T00:00:00Z", nextBillingAt:"2026-09-15T00:00:00Z", totalBilled:5000000 },
-    { id:"sub-003", plan:{name:"Eco+ Monthly"}, rider:{user:{firstName:"Tunde",lastName:"Fashola",email:"tunde@gmail.com"}}, status:"cancelled", startsAt:"2025-07-01T00:00:00Z", nextBillingAt:null, totalBilled:1500000 },
-  ],
-};
-
-const useFetch = (fetcher, fallback) => {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    fetcher().then(r => setData(r?.data ?? r)).catch(() => setData(fallback)).finally(() => setLoading(false));
-  }, []);
-  return [data ?? fallback, loading];
-};
 
 const C = {
   bg:"#f4f7f0", bgCard:"#ffffff", bgDeep:"#0d1a0f", bgMid:"#f0f5ec",
@@ -178,23 +77,28 @@ const Toast = ({ msg, type, onClose }) => {
   return <div style={{ background:C.bgCard, border:`1px solid ${col}44`, borderLeft:`3px solid ${col}`, borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:10, animation:"fadeUp .2s ease", boxShadow:"0 4px 20px rgba(0,0,0,.1)", maxWidth:340 }}><div style={{ width:7, height:7, borderRadius:"50%", background:col, flexShrink:0 }}/><span style={{ fontSize:13, flex:1 }}>{msg}</span><button onClick={onClose} style={{ background:"none", border:"none", color:C.muted, fontSize:18 }}>×</button></div>;
 };
 
-const Table = ({ columns, data, onRowClick, emptyMsg="No records found" }) => (
+const Spinner = () => <div style={{ width:20, height:20, border:`2px solid ${C.border}`, borderTopColor:C.greenMid, borderRadius:"50%", animation:"spin .7s linear infinite" }}/>;
+
+const Empty = ({ msg="No records found" }) => <div style={{ textAlign:"center", padding:48, color:C.muted, fontStyle:"italic" }}>{msg}</div>;
+
+const Table = ({ columns, data, onRowClick, emptyMsg="No records found", loading }) => (
   <div style={{ overflowX:"auto" }}>
+    {loading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
       <thead><tr style={{ background:C.bgMid }}>{columns.map(c=><th key={c.key} style={{ textAlign:"left", padding:"9px 14px", color:C.textMid, fontWeight:600, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap" }}>{c.label}</th>)}</tr></thead>
-      <tbody>{data.length===0?<tr><td colSpan={columns.length} style={{ textAlign:"center", padding:48, color:C.muted, fontStyle:"italic" }}>{emptyMsg}</td></tr>:data.map((row,i)=>(
+      <tbody>{data.length===0?<tr><td colSpan={columns.length}><Empty msg={emptyMsg}/></td></tr>:data.map((row,i)=>(
         <tr key={i} onClick={()=>onRowClick&&onRowClick(row)} style={{ borderBottom:`1px solid ${C.border}`, transition:"background .1s", cursor:onRowClick?"pointer":"default" }} onMouseEnter={e=>e.currentTarget.style.background=C.bgMid} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           {columns.map(c=><td key={c.key} style={{ padding:"12px 14px", verticalAlign:"middle" }}>{c.render?c.render(row):row[c.key]??"—"}</td>)}
         </tr>
       ))}</tbody>
-    </table>
+    </table>}
   </div>
 );
 
 const SC = s=>({completed:C.greenMid,active:C.greenMid,online:C.greenMid,approved:C.greenMid,resolved:C.greenMid,in_progress:C.blue,accepted:C.blue,driver_arrived:C.blue,assigned:C.blue,pending:C.amber,requested:C.amber,open:C.amber,pending_approval:C.amber,cancelled:C.red,rejected:C.red,offline:C.muted,closed:C.muted,failed:C.red,on_trip:C.blue,trial:C.blue,past_due:C.red,expired:C.muted}[s]||C.muted);
 const SB = ({ s }) => <Badge color={SC(s)}>{s?.replace(/_/g," ")}</Badge>;
 
-const Stat = ({ label, value, icon, accent=C.greenMid, sub, onClick }) => (
+const Stat = ({ label, value, icon, accent=C.greenMid, sub, onClick, loading }) => (
   <Card onClick={onClick} style={{ animation:"fadeUp .4s ease", cursor:onClick?"pointer":"default", transition:"transform .15s, box-shadow .15s" }}
     onMouseEnter={e=>{ if(onClick){ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow="0 6px 24px rgba(0,0,0,.1)"; }}}
     onMouseLeave={e=>{ e.currentTarget.style.transform=""; e.currentTarget.style.boxShadow=""; }}>
@@ -205,7 +109,8 @@ const Stat = ({ label, value, icon, accent=C.greenMid, sub, onClick }) => (
         <div style={{ width:8, height:8, borderRadius:"50%", background:accent, animation:"pulse 2.5s infinite" }}/>
       </div>
     </div>
-    <div className="serif" style={{ fontSize:30, fontWeight:600, color:C.text, lineHeight:1, marginBottom:5 }}>{value}</div>
+    {loading ? <div style={{ height:36, display:"flex", alignItems:"center" }}><Spinner/></div> :
+      <div className="serif" style={{ fontSize:30, fontWeight:600, color:C.text, lineHeight:1, marginBottom:5 }}>{value??"—"}</div>}
     <div style={{ fontSize:11, fontWeight:600, color:C.textMid, textTransform:"uppercase", letterSpacing:".06em" }}>{label}</div>
     {sub&&<div style={{ fontSize:11, color:C.textSub, marginTop:3 }}>{sub}</div>}
     <div style={{ height:3, background:C.bgMid, borderRadius:3, marginTop:14 }}><div style={{ height:"100%", width:"60%", background:accent, borderRadius:3, opacity:.65 }}/></div>
@@ -257,7 +162,7 @@ const Sidebar = ({ active, onNav, adminInfo }) => {
         })}
       </div>
       <div style={{ padding:"14px 20px 20px", borderTop:"1px solid #ffffff10" }}>
-        <div style={{ fontSize:12, fontWeight:600, color:"#ffffffcc", marginBottom:4 }}>{adminInfo?.email||"admin@eco.com"}</div>
+        <div style={{ fontSize:12, fontWeight:600, color:"#ffffffcc", marginBottom:4 }}>{adminInfo?.email||"admin@eco.ng"}</div>
         <Badge color={C.lime}>{adminInfo?.role||"superadmin"}</Badge>
       </div>
     </nav>
@@ -312,53 +217,67 @@ const Login = ({ onLogin }) => {
 
 // ─── DASHBOARD ─────────────────────────────────────────────────────────────
 const Dashboard = ({ toast, onNav }) => {
-  const [d,setD]=useState(MOCK.dashboard);
+  const [d,setD]=useState(null);
+  const [dLoading,setDLoading]=useState(true);
   const [activeModal,setActiveModal]=useState(null);
   const [modalData,setModalData]=useState([]);
+  const [modalLoading,setModalLoading]=useState(false);
   const [riderSearch,setRiderSearch]=useState("");
-  const [riders,setRiders]=useState(MOCK.riders);
+  const [riders,setRiders]=useState([]);
   const [dateFilter,setDateFilter]=useState("");
+  const [recentTrips,setRecentTrips]=useState([]);
 
-  useEffect(()=>{ api.dashboard().then(r=>setD(r.data||r)).catch(()=>{}); },[]);
+  useEffect(()=>{
+    api.dashboard().then(r=>setD(r.data||r)).catch(()=>setD({})).finally(()=>setDLoading(false));
+    api.trips({limit:5,status:"completed,in_progress,requested,cancelled"})
+      .then(r=>setRecentTrips(r.data||[]))
+      .catch(()=>setRecentTrips([]));
+  },[]);
 
-  const fmtN = n=>"₦"+Number(n).toLocaleString("en-NG");
+  const fmtN = n=>"₦"+Number(n||0).toLocaleString("en-NG");
   const fmt  = n=>n>=1000?(n/1000).toFixed(1)+"k":n;
-  const co2Kg = (d.lifetimeCo2Grams||0)/1000;
+  const co2Kg = ((d?.lifetimeCo2Grams||0)/1000);
 
   const openActiveTrips = async () => {
-    try { const r=await api.activeTrips(); setModalData(r.data||MOCK.activeTrips); }
-    catch { setModalData(MOCK.activeTrips); }
-    setActiveModal("activeTrips");
+    setActiveModal("activeTrips"); setModalLoading(true);
+    try { const r=await api.activeTrips(); setModalData(r.data||[]); }
+    catch { setModalData([]); }
+    setModalLoading(false);
   };
   const openOnlineDrivers = async () => {
-    try { const r=await api.onlineDrivers(); setModalData(r.data||MOCK.onlineDrivers); }
-    catch { setModalData(MOCK.onlineDrivers); }
-    setActiveModal("onlineDrivers");
+    setActiveModal("onlineDrivers"); setModalLoading(true);
+    try { const r=await api.onlineDrivers(); setModalData(r.data||[]); }
+    catch { setModalData([]); }
+    setModalLoading(false);
   };
   const openRiders = async () => {
-    try { const r=await api.riders({limit:50}); setRiders(r.data||MOCK.riders); }
-    catch { setRiders(MOCK.riders); }
-    setActiveModal("riders");
+    setActiveModal("riders"); setModalLoading(true);
+    try { const r=await api.riders({limit:100}); setRiders(r.data||[]); }
+    catch { setRiders([]); }
+    setModalLoading(false);
   };
-  const openDrivers = () => onNav("drivers");
   const openRevenue = async (date) => {
-    try { const r=await api.payments({date:date||"",limit:50}); setModalData(r.data||MOCK.payments); }
-    catch { setModalData(MOCK.payments); }
-    setActiveModal("revenue");
+    setActiveModal("revenue"); setModalLoading(true);
+    try { const r=await api.payments({date:date||"today",limit:50}); setModalData(r.data||[]); }
+    catch { setModalData([]); }
+    setModalLoading(false);
   };
   const openTodayTrips = async (date) => {
-    try { const r=await api.trips({date:date||"",limit:50}); setModalData(r.data||MOCK.trips); }
-    catch { setModalData(MOCK.trips); }
-    setActiveModal("todayTrips");
+    setActiveModal("todayTrips"); setModalLoading(true);
+    try { const r=await api.trips({date:date||"today",limit:50}); setModalData(r.data||[]); }
+    catch { setModalData([]); }
+    setModalLoading(false);
   };
 
   const filteredRiders = riderSearch
-    ? riders.filter(r=>`${r.user.firstName} ${r.user.lastName} ${r.user.email}`.toLowerCase().includes(riderSearch.toLowerCase()))
+    ? riders.filter(r=>`${r.user?.firstName} ${r.user?.lastName} ${r.user?.email}`.toLowerCase().includes(riderSearch.toLowerCase()))
     : riders;
+
+  const updatedAt = d?.generatedAt ? new Date(d.generatedAt).toLocaleTimeString() : "—";
 
   return (
     <div>
-      <PH title="Overview" sub={`Live data · Updated ${new Date(d.generatedAt).toLocaleTimeString()}`}>
+      <PH title="Overview" sub={`Live data · Updated ${updatedAt}`}>
         <div style={{ display:"flex", alignItems:"center", gap:6, background:C.greenMid+"15", border:`1px solid ${C.greenMid}30`, borderRadius:100, padding:"4px 12px" }}>
           <div style={{ width:7, height:7, borderRadius:"50%", background:C.greenMid, animation:"pulse 2s infinite" }}/>
           <span style={{ fontSize:11, color:C.greenMid, fontWeight:600 }}>LIVE</span>
@@ -366,14 +285,14 @@ const Dashboard = ({ toast, onNav }) => {
       </PH>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(185px,1fr))", gap:14, marginBottom:24 }}>
-        <Stat label="Active Trips"    value={d.activeTrips}        icon="⟁" accent={C.blue}    onClick={openActiveTrips} />
-        <Stat label="Online Drivers"  value={d.activeDrivers}      icon="◎" accent={C.greenMid} onClick={openOnlineDrivers} />
-        <Stat label="Total Riders"    value={fmt(d.totalRiders)}   icon="◉"                    onClick={openRiders} />
-        <Stat label="Total Drivers"   value={fmt(d.totalDrivers)}  icon="◎"                    onClick={openDrivers} />
-        <Stat label="Today Revenue"   value={fmtN(d.dailyRevenue)} icon="₦" accent={C.amber}   onClick={()=>openRevenue("")} />
-        <Stat label="Today Trips"     value={d.dailyTrips}         icon="⟁"                    onClick={()=>openTodayTrips("")} />
-        <Stat label="Pending Refunds" value={d.pendingRefunds}     icon="↺" accent={C.amber}   onClick={()=>onNav("refunds")} />
-        <Stat label="Open Tickets"    value={d.openTickets}        icon="◫" accent={C.amber}   onClick={()=>onNav("tickets")} />
+        <Stat label="Active Trips"    value={d?.activeTrips}        icon="⟁" accent={C.blue}    loading={dLoading} onClick={openActiveTrips} />
+        <Stat label="Online Drivers"  value={d?.activeDrivers}      icon="◎" accent={C.greenMid} loading={dLoading} onClick={openOnlineDrivers} />
+        <Stat label="Total Riders"    value={fmt(d?.totalRiders)}   icon="◉" loading={dLoading}  onClick={openRiders} />
+        <Stat label="Total Drivers"   value={fmt(d?.totalDrivers)}  icon="◎" loading={dLoading}  onClick={()=>onNav("drivers")} />
+        <Stat label="Today Revenue"   value={fmtN(d?.dailyRevenue)} icon="₦" accent={C.amber}   loading={dLoading} onClick={()=>openRevenue("")} />
+        <Stat label="Today Trips"     value={d?.dailyTrips}         icon="⟁" loading={dLoading}  onClick={()=>openTodayTrips("")} />
+        <Stat label="Pending Refunds" value={d?.pendingRefunds}     icon="↺" accent={C.amber}   loading={dLoading} onClick={()=>onNav("refunds")} />
+        <Stat label="Open Tickets"    value={d?.openTickets}        icon="◫" accent={C.amber}   loading={dLoading} onClick={()=>onNav("tickets")} />
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
@@ -391,18 +310,20 @@ const Dashboard = ({ toast, onNav }) => {
         </Card>
         <Card>
           <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:16, color:C.text }}>Recent Trips</div>
-          {MOCK.trips.slice(0,4).map((t,i)=>(
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:i<3?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:500 }}>{t.rider.user.firstName} {t.rider.user.lastName}</div>
-                <div style={{ fontSize:11, color:C.textSub }}>{t.pickupAddress.slice(0,28)}…</div>
+          {recentTrips.length===0 ? <Empty msg="No recent trips"/> :
+            recentTrips.slice(0,4).map((t,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:i<3?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:500 }}>{t.rider?.user?.firstName} {t.rider?.user?.lastName}</div>
+                  <div style={{ fontSize:11, color:C.textSub }}>{(t.pickupAddress||"").slice(0,28)}{t.pickupAddress?.length>28?"…":""}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <SB s={t.status}/>
+                  <div className="mono" style={{ fontSize:11, color:C.textMid, marginTop:3 }}>₦{(t.totalFare||0).toLocaleString()}</div>
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <SB s={t.status}/>
-                <div className="mono" style={{ fontSize:11, color:C.textMid, marginTop:3 }}>₦{t.totalFare.toLocaleString()}</div>
-              </div>
-            </div>
-          ))}
+            ))
+          }
           <div style={{ paddingTop:12 }}><Btn v="outline" size="sm" onClick={()=>onNav("trips")}>View all trips →</Btn></div>
         </Card>
       </div>
@@ -410,41 +331,47 @@ const Dashboard = ({ toast, onNav }) => {
       {/* Active Trips Modal */}
       {activeModal==="activeTrips"&&(
         <Modal title={`Active Trips (${modalData.length})`} onClose={()=>setActiveModal(null)} width={720}>
-          {modalData.map((t,i)=>(
-            <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"14px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontWeight:600, marginBottom:3 }}>Rider: {t.rider?.user?.firstName} {t.rider?.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>Driver: {t.driver?.user?.firstName} {t.driver?.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub, marginTop:4 }}>📍 {t.pickupAddress}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>🏁 {t.dropoffAddress}</div>
+          {modalLoading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
+            modalData.length===0 ? <Empty msg="No active trips right now"/> :
+            modalData.map((t,i)=>(
+              <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, padding:"14px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600, marginBottom:3 }}>Rider: {t.rider?.user?.firstName} {t.rider?.user?.lastName}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>Driver: {t.driver?.user?.firstName} {t.driver?.user?.lastName||"Unassigned"}</div>
+                  <div style={{ fontSize:12, color:C.textSub, marginTop:4 }}>📍 {t.pickupAddress}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>🏁 {t.dropoffAddress}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <SB s={t.status}/> <span className="mono" style={{ fontWeight:700 }}> ₦{(t.totalFare||0).toLocaleString()}</span>
+                  <div style={{ fontSize:11, color:C.textMid, marginTop:4 }}>{t.distanceKm?.toFixed(1)} km</div>
+                  <div style={{ fontSize:11, color:C.muted }}>{new Date(t.createdAt).toLocaleTimeString()}</div>
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <SB s={t.status}/> <span className="mono" style={{ fontWeight:700 }}> ₦{t.totalFare?.toLocaleString()}</span>
-                <div style={{ fontSize:11, color:C.textMid, marginTop:4 }}>{t.distanceKm?.toFixed(1)} km</div>
-                <div style={{ fontSize:11, color:C.muted }}>{new Date(t.createdAt).toLocaleTimeString()}</div>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </Modal>
       )}
 
       {/* Online Drivers Modal */}
       {activeModal==="onlineDrivers"&&(
         <Modal title={`Online Drivers (${modalData.length})`} onClose={()=>setActiveModal(null)} width={600}>
-          {modalData.map((dr,i)=>(
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontWeight:600 }}>{dr.user?.firstName} {dr.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>{dr.user?.email} · {dr.user?.phone}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>{dr.vehicles?.[0]?.model} · {dr.vehicles?.[0]?.licensePlate}</div>
+          {modalLoading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
+            modalData.length===0 ? <Empty msg="No drivers online"/> :
+            modalData.map((dr,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{dr.user?.firstName} {dr.user?.lastName}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>{dr.user?.email} · {dr.user?.phone}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>{dr.vehicles?.[0]?.model} · {dr.vehicles?.[0]?.licensePlate}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <SB s={dr.status}/>
+                  <div style={{ fontSize:12, color:C.amber, marginTop:4 }}>★ {Number(dr.averageRating||0).toFixed(1)}</div>
+                  <div style={{ fontSize:11, color:C.textMid }}>{dr.totalTrips||0} trips</div>
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <SB s={dr.status}/>
-                <div style={{ fontSize:12, color:C.amber, marginTop:4 }}>★ {dr.averageRating?.toFixed(1)}</div>
-                <div style={{ fontSize:11, color:C.textMid }}>{dr.totalTrips} trips</div>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </Modal>
       )}
 
@@ -452,27 +379,30 @@ const Dashboard = ({ toast, onNav }) => {
       {activeModal==="riders"&&(
         <Modal title="All Riders" onClose={()=>setActiveModal(null)} width={680}>
           <div style={{ marginBottom:14 }}>
-            <Input value={riderSearch} onChange={setRiderSearch} placeholder="Search by name, email, phone…"/>
+            <Input value={riderSearch} onChange={setRiderSearch} placeholder="Search by name, email…"/>
           </div>
-          {filteredRiders.map((r,i)=>(
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:i<filteredRiders.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontWeight:600 }}>{r.user?.firstName} {r.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>{r.user?.email} · {r.user?.phone}</div>
-                <div style={{ fontSize:12, color:C.greenMid }}>🌿 {((r.totalCo2SavedGrams||0)/1000).toFixed(2)} kg CO₂ saved</div>
+          {modalLoading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
+            filteredRiders.length===0 ? <Empty msg="No riders found"/> :
+            filteredRiders.map((r,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:i<filteredRiders.length-1?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{r.user?.firstName} {r.user?.lastName}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>{r.user?.email} · {r.user?.phone}</div>
+                  <div style={{ fontSize:12, color:C.greenMid }}>🌿 {((r.totalCo2SavedGrams||0)/1000).toFixed(2)} kg CO₂ saved</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <SB s={r.user?.isActive?"active":"offline"}/>
+                  <div style={{ fontSize:12, color:C.textMid, marginTop:4 }}>{r.totalTrips||0} rides</div>
+                  {!r.user?.isActive&&<Btn size="sm" v="outline" style={{ marginTop:6 }} onClick={async()=>{
+                    try{await api.unblockUser(r.id);setRiders(p=>p.map(x=>x.id===r.id?{...x,user:{...x.user,isActive:true}}:x));}catch{}
+                  }}>Unblock</Btn>}
+                  {r.user?.isActive&&<Btn size="sm" v="danger" style={{ marginTop:6 }} onClick={async()=>{
+                    try{await api.blockUser(r.id,"Admin action");setRiders(p=>p.map(x=>x.id===r.id?{...x,user:{...x.user,isActive:false}}:x));}catch{}
+                  }}>Block</Btn>}
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <SB s={r.user?.isActive?"active":"offline"}/>
-                <div style={{ fontSize:12, color:C.textMid, marginTop:4 }}>{r.totalTrips} rides · ₦{(r.totalSpend||0).toLocaleString()}</div>
-                {!r.user?.isActive&&<Btn size="sm" v="outline" style={{ marginTop:6 }} onClick={async()=>{
-                  try{await api.unblockUser(r.id);setRiders(p=>p.map(x=>x.id===r.id?{...x,user:{...x.user,isActive:true}}:x));}catch{}
-                }}>Unblock</Btn>}
-                {r.user?.isActive&&<Btn size="sm" v="danger" style={{ marginTop:6 }} onClick={async()=>{
-                  try{await api.blockUser(r.id,"Admin action");setRiders(p=>p.map(x=>x.id===r.id?{...x,user:{...x.user,isActive:false}}:x));}catch{}
-                }}>Block</Btn>}
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </Modal>
       )}
 
@@ -480,25 +410,28 @@ const Dashboard = ({ toast, onNav }) => {
       {activeModal==="revenue"&&(
         <Modal title="Revenue Records" onClose={()=>setActiveModal(null)} width={680}>
           <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-            {["","today","yesterday","7d","30d"].map(v=>(
+            {["today","yesterday","7d","30d"].map(v=>(
               <Btn key={v} v={dateFilter===v?"primary":"ghost"} size="sm" onClick={()=>{setDateFilter(v);openRevenue(v);}}>
-                {v===""?"All":v==="today"?"Today":v==="yesterday"?"Yesterday":v==="7d"?"7 Days":"30 Days"}
+                {v==="today"?"Today":v==="yesterday"?"Yesterday":v==="7d"?"7 Days":"30 Days"}
               </Btn>
             ))}
             <input type="date" onChange={e=>{setDateFilter(e.target.value);openRevenue(e.target.value);}} style={{ background:C.bgMid, border:`1px solid ${C.borderDk}`, borderRadius:8, padding:"4px 10px", fontSize:12, color:C.text }}/>
           </div>
-          {modalData.map((p,i)=>(
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontWeight:600 }}>{p.rider?.user?.firstName} {p.rider?.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>{new Date(p.createdAt).toLocaleString("en-NG")}</div>
+          {modalLoading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
+            modalData.length===0 ? <Empty msg="No revenue records"/> :
+            modalData.map((p,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{p.rider?.user?.firstName} {p.rider?.user?.lastName}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>{new Date(p.createdAt).toLocaleString("en-NG")}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <span className="mono" style={{ fontWeight:700 }}>₦{(p.amount||0).toLocaleString()}</span>
+                  <div style={{ marginTop:2 }}><Badge color={p.method==="card"?C.blue:p.method==="wallet"?C.greenMid:"#4a3728"}>{p.method}</Badge> <SB s={p.status}/></div>
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <span className="mono" style={{ fontWeight:700 }}>₦{p.amount?.toLocaleString()}</span>
-                <div style={{ marginTop:2 }}><Badge color={p.method==="card"?C.blue:p.method==="wallet"?C.greenMid:"#4a3728"}>{p.method}</Badge> <SB s={p.status}/></div>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </Modal>
       )}
 
@@ -506,26 +439,29 @@ const Dashboard = ({ toast, onNav }) => {
       {activeModal==="todayTrips"&&(
         <Modal title="Trip Records" onClose={()=>setActiveModal(null)} width={720}>
           <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-            {["","today","yesterday","7d","30d"].map(v=>(
+            {["today","yesterday","7d","30d"].map(v=>(
               <Btn key={v} v={dateFilter===v?"primary":"ghost"} size="sm" onClick={()=>{setDateFilter(v);openTodayTrips(v);}}>
-                {v===""?"All":v==="today"?"Today":v==="yesterday"?"Yesterday":v==="7d"?"7 Days":"30 Days"}
+                {v==="today"?"Today":v==="yesterday"?"Yesterday":v==="7d"?"7 Days":"30 Days"}
               </Btn>
             ))}
             <input type="date" onChange={e=>{setDateFilter(e.target.value);openTodayTrips(e.target.value);}} style={{ background:C.bgMid, border:`1px solid ${C.borderDk}`, borderRadius:8, padding:"4px 10px", fontSize:12, color:C.text }}/>
           </div>
-          {modalData.map((t,i)=>(
-            <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
-              <div>
-                <div style={{ fontWeight:600 }}>{t.rider?.user?.firstName} {t.rider?.user?.lastName}</div>
-                <div style={{ fontSize:12, color:C.textSub }}>{t.pickupAddress?.slice(0,40)}</div>
-                <div style={{ fontSize:11, color:C.muted }}>{new Date(t.createdAt).toLocaleString("en-NG")}</div>
+          {modalLoading ? <div style={{ display:"flex", justifyContent:"center", padding:40 }}><Spinner/></div> :
+            modalData.length===0 ? <Empty msg="No trips found"/> :
+            modalData.map((t,i)=>(
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:i<modalData.length-1?`1px solid ${C.border}`:"none" }}>
+                <div>
+                  <div style={{ fontWeight:600 }}>{t.rider?.user?.firstName} {t.rider?.user?.lastName}</div>
+                  <div style={{ fontSize:12, color:C.textSub }}>{(t.pickupAddress||"").slice(0,40)}</div>
+                  <div style={{ fontSize:11, color:C.muted }}>{new Date(t.createdAt).toLocaleString("en-NG")}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <SB s={t.status}/>
+                  <div className="mono" style={{ fontSize:12, marginTop:4 }}>₦{(t.totalFare||0).toLocaleString()}</div>
+                </div>
               </div>
-              <div style={{ textAlign:"right" }}>
-                <SB s={t.status}/>
-                <div className="mono" style={{ fontSize:12, marginTop:4 }}>₦{t.totalFare?.toLocaleString()}</div>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </Modal>
       )}
     </div>
@@ -535,13 +471,20 @@ const Dashboard = ({ toast, onNav }) => {
 // ─── ANALYTICS ─────────────────────────────────────────────────────────────
 const Analytics = () => {
   const [period,setPeriod]=useState("7d");
-  const [d,setD]=useState(MOCK.analytics);
-  useEffect(()=>{ api.analytics(period).then(r=>setD(r.data||r)).catch(()=>{}); },[period]);
+  const [d,setD]=useState(null);
+  const [loading,setLoading]=useState(true);
 
-  const totalTrips   = d.tripsData.reduce((s,x)=>s+Number(x.count),0);
-  const totalRevenue = d.revenueData.reduce((s,x)=>s+Number(x.revenue),0);
-  const maxRev       = Math.max(...d.revenueData.map(x=>Number(x.revenue)));
-  const co2Grams     = d.lifetimeCo2Grams||0;
+  useEffect(()=>{
+    setLoading(true);
+    api.analytics(period).then(r=>setD(r.data||r)).catch(()=>setD(null)).finally(()=>setLoading(false));
+  },[period]);
+
+  const revenueData = d?.revenueData||[];
+  const tripsData   = d?.tripsData||[];
+  const totalTrips   = tripsData.reduce((s,x)=>s+Number(x.count||0),0);
+  const totalRevenue = revenueData.reduce((s,x)=>s+Number(x.revenue||0),0);
+  const maxRev       = Math.max(...revenueData.map(x=>Number(x.revenue||0)),1);
+  const co2Grams     = d?.lifetimeCo2Grams||0;
 
   return (
     <div>
@@ -549,56 +492,61 @@ const Analytics = () => {
         <Sel value={period} onChange={setPeriod} options={[{value:"1d",label:"Today"},{value:"7d",label:"Last 7 days"},{value:"30d",label:"Last 30 days"}]}/>
       </PH>
 
-      {/* ── CO₂ stat card REMOVED as per spec ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14, marginBottom:20 }}>
-        <Stat label="Total Trips"   value={totalTrips.toLocaleString()} icon="⟁"/>
-        <Stat label="Total Revenue" value={`₦${(totalRevenue/1000).toFixed(0)}k`} icon="₦" accent={C.amber}/>
-      </div>
+      {loading ? <div style={{ display:"flex", justifyContent:"center", padding:60 }}><Spinner/></div> : <>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14, marginBottom:20 }}>
+          <Stat label="Total Trips"   value={totalTrips.toLocaleString()} icon="⟁"/>
+          <Stat label="Total Revenue" value={`₦${(totalRevenue/1000).toFixed(0)}k`} icon="₦" accent={C.amber}/>
+        </div>
 
-      <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:16 }}>
-        <Card>
-          <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:20 }}>Revenue by Day</div>
-          <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160 }}>
-            {d.revenueData.map((x,i)=>{
-              const h=(Number(x.revenue)/maxRev)*100;
-              return (
-                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                  <div title={`₦${Number(x.revenue).toLocaleString()}`} style={{ width:"100%", height:`${h}%`, background:`linear-gradient(to top,${C.green},${C.greenBrt})`, borderRadius:"4px 4px 0 0", minHeight:4, transition:"height .4s ease" }}/>
-                  <span style={{ fontSize:9, color:C.muted, transform:"rotate(-35deg)", whiteSpace:"nowrap" }}>{x.date.slice(5)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-        <Card>
-          <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:20 }}>Trip Breakdown</div>
-          {d.tripsData.map(({status,count})=>(
-            <div key={status} style={{ marginBottom:14 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}><SB s={status}/><span className="mono" style={{ fontSize:12, color:C.textMid }}>{Number(count).toLocaleString()}</span></div>
-              <div style={{ height:5, background:C.bgMid, borderRadius:4 }}><div style={{ height:"100%", width:`${(Number(count)/totalTrips)*100}%`, background:SC(status), borderRadius:4 }}/></div>
-            </div>
-          ))}
-        </Card>
-        <Card style={{ gridColumn:"1 / -1", background:"#f0f7ec", border:`1px solid ${C.greenMid}33` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
-            <span style={{ fontSize:20 }}>🌿</span>
-            <div className="serif" style={{ fontWeight:600, fontSize:15 }}>Carbon Impact — Lifetime Environmental Contribution</div>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", textAlign:"center", gap:10 }}>
-            {[
-              ["kg CO₂ Saved",(co2Grams/1000).toFixed(2),C.greenMid],
-              ["Tree Equivalent",(co2Grams/21000).toFixed(1),C.green],
-              ["Total Eco Trips",totalTrips,C.greenBrt],
-              ["Avg per Trip",`${Math.round(co2Grams/Math.max(totalTrips,1))}g`,C.lime],
-            ].map(([l,v,col])=>(
-              <div key={l}>
-                <div className="serif" style={{ fontSize:32, fontWeight:600, color:col }}>{v}</div>
-                <div style={{ fontSize:11, color:C.textMid, textTransform:"uppercase", letterSpacing:".06em", marginTop:4 }}>{l}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:16 }}>
+          <Card>
+            <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:20 }}>Revenue by Day</div>
+            {revenueData.length===0 ? <Empty msg="No revenue data"/> :
+              <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:160 }}>
+                {revenueData.map((x,i)=>{
+                  const h=(Number(x.revenue||0)/maxRev)*100;
+                  return (
+                    <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <div title={`₦${Number(x.revenue).toLocaleString()}`} style={{ width:"100%", height:`${h}%`, background:`linear-gradient(to top,${C.green},${C.greenBrt})`, borderRadius:"4px 4px 0 0", minHeight:4, transition:"height .4s ease" }}/>
+                      <span style={{ fontSize:9, color:C.muted, transform:"rotate(-35deg)", whiteSpace:"nowrap" }}>{x.date?.slice(5)}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+            }
+          </Card>
+          <Card>
+            <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:20 }}>Trip Breakdown</div>
+            {tripsData.length===0 ? <Empty msg="No data"/> :
+              tripsData.map(({status,count})=>(
+                <div key={status} style={{ marginBottom:14 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}><SB s={status}/><span className="mono" style={{ fontSize:12, color:C.textMid }}>{Number(count||0).toLocaleString()}</span></div>
+                  <div style={{ height:5, background:C.bgMid, borderRadius:4 }}><div style={{ height:"100%", width:`${totalTrips?(Number(count)/totalTrips)*100:0}%`, background:SC(status), borderRadius:4 }}/></div>
+                </div>
+              ))
+            }
+          </Card>
+          <Card style={{ gridColumn:"1 / -1", background:"#f0f7ec", border:`1px solid ${C.greenMid}33` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:20 }}>
+              <span style={{ fontSize:20 }}>🌿</span>
+              <div className="serif" style={{ fontWeight:600, fontSize:15 }}>Carbon Impact — Lifetime Environmental Contribution</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", textAlign:"center", gap:10 }}>
+              {[
+                ["kg CO₂ Saved",(co2Grams/1000).toFixed(2),C.greenMid],
+                ["Tree Equivalent",(co2Grams/21000).toFixed(1),C.green],
+                ["Total Eco Trips",totalTrips,C.greenBrt],
+                ["Avg per Trip",`${Math.round(co2Grams/Math.max(totalTrips,1))}g`,C.lime],
+              ].map(([l,v,col])=>(
+                <div key={l}>
+                  <div className="serif" style={{ fontSize:32, fontWeight:600, color:col }}>{v}</div>
+                  <div style={{ fontSize:11, color:C.textMid, textTransform:"uppercase", letterSpacing:".06em", marginTop:4 }}>{l}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </>}
     </div>
   );
 };
@@ -607,21 +555,26 @@ const Analytics = () => {
 const Trips = ({ toast }) => {
   const [statusFilter,setStatusFilter]=useState("");
   const [dateFilter,setDateFilter]=useState("");
-  const [rows,setRows]=useState(MOCK.trips);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    api.trips({status:statusFilter,date:dateFilter}).then(r=>setRows(r.data||MOCK.trips)).catch(()=>{});
+    setLoading(true);
+    api.trips({status:statusFilter,date:dateFilter})
+      .then(r=>setRows(r.data||[]))
+      .catch(()=>setRows([]))
+      .finally(()=>setLoading(false));
   },[statusFilter,dateFilter]);
 
   const cols = [
     { key:"id",     label:"Trip ID",   render:r=><span className="mono" style={{ fontSize:11, color:C.textSub }}>{r.id}</span> },
     { key:"rider",  label:"Rider",     render:r=>`${r.rider?.user?.firstName||""} ${r.rider?.user?.lastName||""}` },
     { key:"driver", label:"Driver",    render:r=>r.driver?`${r.driver.user?.firstName||""} ${r.driver.user?.lastName||""}`:<span style={{ color:C.muted, fontStyle:"italic" }}>Unassigned</span> },
-    { key:"pickup", label:"Pickup",    render:r=><span style={{ fontSize:12 }}>{(r.pickupAddress||"").slice(0,30)}…</span> },
+    { key:"pickup", label:"Pickup",    render:r=><span style={{ fontSize:12 }}>{(r.pickupAddress||"").slice(0,30)}</span> },
     { key:"class",  label:"Class",     render:r=><Badge color={r.rideClass==="executive"?C.amber:C.greenMid}>{r.rideClass}</Badge> },
     { key:"status", label:"Status",    render:r=><SB s={r.status}/> },
     { key:"fare",   label:"Fare",      render:r=><span className="mono" style={{ fontWeight:600 }}>₦{(r.totalFare||0).toLocaleString()}</span> },
-    { key:"co2",    label:"CO₂",       render:r=><span style={{ color:C.greenMid, fontSize:12 }}>🌿 {r.co2SavedGrams}g</span> },
+    { key:"co2",    label:"CO₂",       render:r=><span style={{ color:C.greenMid, fontSize:12 }}>🌿 {r.co2SavedGrams||0}g</span> },
     { key:"dist",   label:"Dist",      render:r=><span className="mono">{(r.distanceKm||0).toFixed(1)}km</span> },
     { key:"date",   label:"Date",      render:r=>new Date(r.createdAt).toLocaleDateString("en-NG") },
   ];
@@ -638,7 +591,7 @@ const Trips = ({ toast }) => {
           style={{ background:C.bgMid, border:`1px solid ${C.borderDk}`, borderRadius:10, padding:"9px 13px", color:C.text, fontSize:13, outline:"none" }}/>
         {dateFilter&&<Btn v="ghost" size="sm" onClick={()=>setDateFilter("")}>Clear Date</Btn>}
       </PH>
-      <Card pad={0}><Table columns={cols} data={rows}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No trips found"/></Card>
     </div>
   );
 };
@@ -647,11 +600,16 @@ const Trips = ({ toast }) => {
 const Drivers = ({ toast }) => {
   const [statusFilter,setStatusFilter]=useState("");
   const [appFilter,setAppFilter]=useState("");
-  const [rows,setRows]=useState(MOCK.drivers);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [selected,setSelected]=useState(null);
 
   useEffect(()=>{
-    api.drivers({status:statusFilter,isApproved:appFilter==="approved"?"true":appFilter==="pending"?"false":undefined}).then(r=>setRows(r.data||MOCK.drivers)).catch(()=>{});
+    setLoading(true);
+    api.drivers({status:statusFilter,isApproved:appFilter==="approved"?"true":appFilter==="pending"?"false":undefined})
+      .then(r=>setRows(r.data||[]))
+      .catch(()=>setRows([]))
+      .finally(()=>setLoading(false));
   },[statusFilter,appFilter]);
 
   const approve = async (id) => {
@@ -666,11 +624,11 @@ const Drivers = ({ toast }) => {
 
   const cols = [
     { key:"name",     label:"Driver",      render:r=><div><div style={{ fontWeight:600 }}>{r.user?.firstName} {r.user?.lastName}</div><div style={{ fontSize:11, color:C.textSub }}>{r.user?.email}</div></div> },
-    { key:"vehicle",  label:"Vehicle",     render:r=><div><div style={{ fontSize:12 }}>{r.vehicles?.[0]?.model}</div><div className="mono" style={{ fontSize:11, color:C.textSub }}>{r.vehicles?.[0]?.licensePlate}</div></div> },
+    { key:"vehicle",  label:"Vehicle",     render:r=><div><div style={{ fontSize:12 }}>{r.vehicles?.[0]?.model||"—"}</div><div className="mono" style={{ fontSize:11, color:C.textSub }}>{r.vehicles?.[0]?.licensePlate||""}</div></div> },
     { key:"status",   label:"Status",      render:r=><SB s={r.status}/> },
     { key:"approved", label:"Approval",    render:r=>r.isApproved?<Badge color={C.greenMid}>Approved</Badge>:<Badge color={C.amber}>Pending</Badge> },
     { key:"rating",   label:"Rating",      render:r=>r.averageRating>0?<span style={{ color:C.amber }}>★ {Number(r.averageRating).toFixed(1)}</span>:<span style={{ color:C.muted }}>—</span> },
-    { key:"trips",    label:"Trips",       render:r=><span className="mono">{r.totalTrips}</span> },
+    { key:"trips",    label:"Trips",       render:r=><span className="mono">{r.totalTrips||0}</span> },
     { key:"tier",     label:"Tier",        render:r=><Badge color={TC(r.reward?.tier||"bronze")}>{r.reward?.tier||"bronze"}</Badge> },
     { key:"earnings", label:"Earnings",    render:r=><span className="mono">₦{(r.totalEarnings||0).toLocaleString()}</span> },
     { key:"actions",  label:"",            render:r=>!r.isApproved?<Btn size="sm" v="lime" onClick={e=>{e.stopPropagation();approve(r.id);}}>Approve</Btn>:null },
@@ -682,7 +640,7 @@ const Drivers = ({ toast }) => {
         <Sel value={statusFilter} onChange={setStatusFilter} options={[{value:"",label:"All status"},{value:"online",label:"Online"},{value:"offline",label:"Offline"},{value:"on_trip",label:"On Trip"}]}/>
         <Sel value={appFilter} onChange={setAppFilter} options={[{value:"",label:"All"},{value:"pending",label:"Pending Approval"},{value:"approved",label:"Approved"}]}/>
       </PH>
-      <Card pad={0}><Table columns={cols} data={rows} onRowClick={setSelected}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} onRowClick={setSelected} emptyMsg="No drivers found"/></Card>
 
       {selected&&(
         <Modal title={`${selected.user?.firstName} ${selected.user?.lastName} — Driver Profile`} onClose={()=>setSelected(null)} width={640}>
@@ -690,10 +648,11 @@ const Drivers = ({ toast }) => {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
               {[
                 ["Email", selected.user?.email],
+                ["Phone", selected.user?.phone],
                 ["Status", <SB s={selected.status}/>],
                 ["Approval", selected.isApproved?<Badge color={C.greenMid}>Approved</Badge>:<Badge color={C.amber}>Pending</Badge>],
                 ["Rating", selected.averageRating>0?`★ ${Number(selected.averageRating).toFixed(1)}`:"—"],
-                ["Total Trips", selected.totalTrips],
+                ["Total Trips", selected.totalTrips||0],
                 ["Total Earnings", `₦${(selected.totalEarnings||0).toLocaleString()}`],
                 ["Acceptance Rate", selected.acceptanceRate?`${selected.acceptanceRate}%`:"—"],
                 ["Tier", <Badge color={({bronze:"#c27c44",silver:"#8ea0b8",gold:C.amber,platinum:"#7bc4dc"})[selected.reward?.tier||"bronze"]}>{selected.reward?.tier||"bronze"}</Badge>],
@@ -740,16 +699,19 @@ const Drivers = ({ toast }) => {
 
 // ─── FARE ENGINE ──────────────────────────────────────────────────────────
 const FareEngine = ({ toast }) => {
-  const [fareRules,setFareRules]=useState(MOCK.fareRules);
-  const [surgeRules,setSurgeRules]=useState(MOCK.surgeRules);
+  const [fareRules,setFareRules]=useState([]);
+  const [surgeRules,setSurgeRules]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [editFare,setEditFare]=useState(null);
   const [editSurge,setEditSurge]=useState(null);
   const [ff,setFf]=useState({});
   const [sf,setSf]=useState({});
 
   useEffect(()=>{
-    api.fareRules().then(r=>setFareRules(r.data?.rules||r.rules||MOCK.fareRules)).catch(()=>{});
-    api.surgeRules().then(r=>setSurgeRules(r.data?.rules||r.rules||MOCK.surgeRules)).catch(()=>{});
+    Promise.all([
+      api.fareRules().then(r=>setFareRules(r.data?.rules||r.rules||r.data||[])),
+      api.surgeRules().then(r=>setSurgeRules(r.data?.rules||r.rules||r.data||[])),
+    ]).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
 
   const saveFare = async () => {
@@ -759,11 +721,7 @@ const FareEngine = ({ toast }) => {
       if(editFare==="new") setFareRules(p=>[...p,saved]);
       else setFareRules(p=>p.map(x=>x.id===editFare?saved:x));
       toast("Fare rule saved!","success");
-    } catch {
-      if(editFare==="new") setFareRules(r=>[...r,{...ff,id:"fr-"+Date.now(),isActive:true}]);
-      else setFareRules(r=>r.map(x=>x.id===editFare?{...x,...ff}:x));
-      toast("Fare rule saved!","success");
-    }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setEditFare(null);
   };
   const saveSurge = async () => {
@@ -773,15 +731,13 @@ const FareEngine = ({ toast }) => {
       if(editSurge==="new") setSurgeRules(p=>[...p,saved]);
       else setSurgeRules(p=>p.map(x=>x.id===editSurge?saved:x));
       toast("Surge rule saved!","success");
-    } catch {
-      if(editSurge==="new") setSurgeRules(r=>[...r,{...sf,id:"sr-"+Date.now(),isActive:true}]);
-      else setSurgeRules(r=>r.map(x=>x.id===editSurge?{...x,...sf}:x));
-      toast("Surge rule saved!","success");
-    }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setEditSurge(null);
   };
 
   const CC=c=>({eco:C.greenMid,standard:C.blue,executive:C.amber})[c]||C.muted;
+
+  if(loading) return <div style={{ display:"flex", justifyContent:"center", padding:60 }}><Spinner/></div>;
 
   return (
     <div>
@@ -792,6 +748,7 @@ const FareEngine = ({ toast }) => {
       <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
         <Card>
           <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:18 }}>Fare Rules</div>
+          {fareRules.length===0 ? <Empty msg="No fare rules configured"/> :
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:12 }}>
             {fareRules.map(r=>(
               <div key={r.id} style={{ background:C.bgMid, borderRadius:14, padding:18, border:`1px solid ${C.border}`, borderTop:`3px solid ${CC(r.rideClass)}` }}>
@@ -812,7 +769,7 @@ const FareEngine = ({ toast }) => {
                 </div>
               </div>
             ))}
-          </div>
+          </div>}
         </Card>
         <Card>
           <div className="serif" style={{ fontWeight:600, fontSize:15, marginBottom:18 }}>Surge Pricing Rules</div>
@@ -823,7 +780,7 @@ const FareEngine = ({ toast }) => {
             { key:"demand",  label:"Min Demand", render:r=><span className="mono">{r.demandThreshold} trips</span> },
             { key:"status",  label:"Status",     render:r=><SB s={r.isActive?"active":"offline"}/> },
             { key:"actions", label:"",           render:r=><Btn v="ghost" size="sm" onClick={()=>{setSf(r);setEditSurge(r.id);}}>Edit</Btn> },
-          ]} data={surgeRules}/>
+          ]} data={surgeRules} emptyMsg="No surge rules configured"/>
         </Card>
       </div>
 
@@ -866,30 +823,29 @@ const FareEngine = ({ toast }) => {
   );
 };
 
-// ─── FINANCE (renamed from Payments) ──────────────────────────────────────
+// ─── FINANCE ──────────────────────────────────────────────────────────────
 const Finance = () => {
   const [statusFilter,setStatusFilter]=useState("");
-  const [dateFilter,setDateFilter]=useState("");
-  const [rows,setRows]=useState(MOCK.payments);
+  const [dateFilter,setDateFilter]=useState("today");
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [customDate,setCustomDate]=useState("");
 
-  const load = (status,date) => {
-    api.payments({status,date}).then(r=>setRows(r.data||MOCK.payments)).catch(()=>{});
-  };
-  useEffect(()=>load(statusFilter,dateFilter),[statusFilter,dateFilter]);
+  useEffect(()=>{
+    setLoading(true);
+    api.payments({status:statusFilter,date:dateFilter})
+      .then(r=>setRows(r.data||[]))
+      .catch(()=>setRows([]))
+      .finally(()=>setLoading(false));
+  },[statusFilter,dateFilter]);
 
-  const QUICK = [
-    {label:"Today",     value:"today"},
-    {label:"Yesterday", value:"yesterday"},
-    {label:"7 Days",    value:"7d"},
-    {label:"30 Days",   value:"30d"},
-  ];
+  const QUICK = [{label:"Today",value:"today"},{label:"Yesterday",value:"yesterday"},{label:"7 Days",value:"7d"},{label:"30 Days",value:"30d"}];
 
   const cols = [
     { key:"id",     label:"ID",             render:r=><span className="mono" style={{ fontSize:11 }}>{r.id}</span> },
     { key:"rider",  label:"Rider",          render:r=>`${r.rider?.user?.firstName||""} ${r.rider?.user?.lastName||""}` },
     { key:"amount", label:"Total",          render:r=><span className="mono" style={{ fontWeight:700 }}>₦{(r.amount||0).toLocaleString()}</span> },
-    { key:"method", label:"Method",         render:r=><Badge color={r.method==="card"?C.blue:r.method==="wallet"?C.greenMid:"#4a3728"}>{r.method}</Badge> },
+    { key:"method", label:"Method",         render:r=><Badge color={r.method==="card"?C.blue:r.method==="wallet"?C.greenMid:"#4a3728"}>{r.method||"—"}</Badge> },
     { key:"status", label:"Status",         render:r=><SB s={r.status}/> },
     { key:"driver", label:"Driver Payout",  render:r=><span className="mono">₦{(r.driverEarnings||0).toLocaleString()}</span> },
     { key:"fee",    label:"Platform (20%)", render:r=><span className="mono">₦{(r.platformFee||0).toLocaleString()}</span> },
@@ -911,7 +867,7 @@ const Finance = () => {
           style={{ background:C.bgMid, border:`1px solid ${C.borderDk}`, borderRadius:8, padding:"5px 10px", fontSize:12, color:C.text }}/>
         {dateFilter&&<Btn v="ghost" size="sm" onClick={()=>{setDateFilter("");setCustomDate("");}}>Clear</Btn>}
       </div>
-      <Card pad={0}><Table columns={cols} data={rows}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No payment records found"/></Card>
     </div>
   );
 };
@@ -919,13 +875,18 @@ const Finance = () => {
 // ─── REFUNDS ──────────────────────────────────────────────────────────────
 const Refunds = ({ toast }) => {
   const [filter,setFilter]=useState("pending");
-  const [rows,setRows]=useState(MOCK.refunds);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [modal,setModal]=useState(null);
   const [notes,setNotes]=useState("");
 
-  useEffect(()=>{ api.refunds({status:filter}).then(r=>setRows(r.data||MOCK.refunds)).catch(()=>{}); },[filter]);
-
-  const filtered = filter?rows.filter(r=>r.status===filter):rows;
+  useEffect(()=>{
+    setLoading(true);
+    api.refunds({status:filter})
+      .then(r=>setRows(r.data||[]))
+      .catch(()=>setRows([]))
+      .finally(()=>setLoading(false));
+  },[filter]);
 
   const handle = async () => {
     try {
@@ -933,17 +894,14 @@ const Refunds = ({ toast }) => {
       else await api.rejectRefund(modal.row.id,notes);
       setRows(r=>r.map(x=>x.id===modal.row.id?{...x,status:modal.type==="approve"?"approved":"rejected"}:x));
       toast(`Refund ${modal.type==="approve"?"approved":"rejected"}!`,"success");
-    } catch {
-      setRows(r=>r.map(x=>x.id===modal.row.id?{...x,status:modal.type==="approve"?"approved":"rejected"}:x));
-      toast(`Refund ${modal.type==="approve"?"approved":"rejected"}!`,"success");
-    }
+    } catch(e) { toast(e.message||"Action failed","error"); }
     setModal(null);setNotes("");
   };
 
   const cols = [
     { key:"id",     label:"ID",     render:r=><span className="mono" style={{ fontSize:11 }}>{r.id}</span> },
     { key:"amount", label:"Amount", render:r=><span className="mono" style={{ fontWeight:700, color:C.amber }}>₦{(r.amount||0).toLocaleString()}</span> },
-    { key:"reason", label:"Reason", render:r=><span style={{ fontSize:12 }}>{(r.reason||"").slice(0,52)}…</span> },
+    { key:"reason", label:"Reason", render:r=><span style={{ fontSize:12 }}>{(r.reason||"").slice(0,52)}{r.reason?.length>52?"…":""}</span> },
     { key:"type",   label:"Type",   render:r=><Badge color={r.type==="auto"?C.blue:C.amber}>{r.type}</Badge> },
     { key:"status", label:"Status", render:r=><SB s={r.status}/> },
     { key:"date",   label:"Date",   render:r=>new Date(r.createdAt).toLocaleDateString("en-NG") },
@@ -960,7 +918,7 @@ const Refunds = ({ toast }) => {
       <PH title="Refunds & Disputes" sub="Review and resolve customer refund requests">
         <Sel value={filter} onChange={setFilter} options={[{value:"",label:"All"},{value:"pending",label:"Pending"},{value:"approved",label:"Approved"},{value:"rejected",label:"Rejected"}]}/>
       </PH>
-      <Card pad={0}><Table columns={cols} data={filtered}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No refund requests"/></Card>
       {modal&&(
         <Modal title={`${modal.type==="approve"?"Approve":"Reject"} Refund — ₦${modal.row.amount?.toLocaleString()}`} onClose={()=>setModal(null)}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -984,22 +942,21 @@ const Refunds = ({ toast }) => {
 
 // ─── PROMOTIONS ────────────────────────────────────────────────────────────
 const Promotions = ({ toast }) => {
-  const [rows,setRows]=useState(MOCK.promotions);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [modal,setModal]=useState(null);
   const [form,setForm]=useState({});
 
-  useEffect(()=>{ api.promotions().then(r=>setRows(r.data?.promotions||MOCK.promotions)).catch(()=>{}); },[]);
+  useEffect(()=>{
+    api.promotions().then(r=>setRows(r.data?.promotions||r.data||[])).catch(()=>setRows([])).finally(()=>setLoading(false));
+  },[]);
 
   const save = async () => {
     try {
       if(modal==="new"){ const r=await api.createPromo(form); setRows(p=>[...p,r.data||r]); }
       else { const r=await api.updatePromo(modal,form); setRows(p=>p.map(x=>x.id===modal?r.data||r:x)); }
       toast("Promotion saved!","success");
-    } catch {
-      if(modal==="new") setRows(r=>[...r,{...form,id:"pr-"+Date.now(),totalRedeemed:0,isActive:true}]);
-      else setRows(r=>r.map(x=>x.id===modal?{...x,...form}:x));
-      toast("Promotion saved!","success");
-    }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setModal(null);
   };
 
@@ -1019,7 +976,7 @@ const Promotions = ({ toast }) => {
       <PH title="Promotions" sub="Discount codes and special offers">
         <Btn v="primary" onClick={()=>{setForm({discountType:"percentage",isActive:true});setModal("new");}}>+ New Promo</Btn>
       </PH>
-      <Card pad={0}><Table columns={cols} data={rows}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No promotions created yet"/></Card>
       {modal&&(
         <Modal title={modal==="new"?"Create Promotion":"Edit Promotion"} onClose={()=>setModal(null)}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -1049,12 +1006,16 @@ const Promotions = ({ toast }) => {
 // ─── SUPPORT TICKETS ──────────────────────────────────────────────────────
 const Tickets = ({ toast }) => {
   const [filter,setFilter]=useState("open");
-  const [rows,setRows]=useState(MOCK.tickets);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [sel,setSel]=useState(null);
   const [reply,setReply]=useState("");
   const [res,setRes]=useState("");
 
-  useEffect(()=>{ api.tickets({status:filter}).then(r=>setRows(r.data||MOCK.tickets)).catch(()=>{}); },[filter]);
+  useEffect(()=>{
+    setLoading(true);
+    api.tickets({status:filter}).then(r=>setRows(r.data||[])).catch(()=>setRows([])).finally(()=>setLoading(false));
+  },[filter]);
 
   const filtered=filter?rows.filter(r=>r.status===filter):rows;
   const PC=p=>({low:C.muted,medium:C.blue,high:C.amber,urgent:C.red})[p];
@@ -1088,7 +1049,7 @@ const Tickets = ({ toast }) => {
       <PH title="Support Tickets" sub="Customer and driver support requests">
         <Sel value={filter} onChange={setFilter} options={[{value:"",label:"All"},{value:"open",label:"Open"},{value:"in_progress",label:"In Progress"},{value:"resolved",label:"Resolved"}]}/>
       </PH>
-      <Card pad={0}><Table columns={cols} data={filtered}/></Card>
+      <Card pad={0}><Table columns={cols} data={filtered} loading={loading} emptyMsg="No tickets found"/></Card>
       {sel&&(
         <Modal title={sel.subject} onClose={()=>setSel(null)} width={600}>
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
@@ -1126,24 +1087,29 @@ const Tickets = ({ toast }) => {
   );
 };
 
-// ─── CO2 EMISSION ANALYTICS (new page) ────────────────────────────────────
+// ─── CO2 ANALYTICS ────────────────────────────────────────────────────────
 const Co2Analytics = ({ toast }) => {
-  const [data,setData]=useState(MOCK.co2Analytics);
+  const [data,setData]=useState(null);
+  const [loading,setLoading]=useState(true);
   const [editConfig,setEditConfig]=useState(false);
   const [cfg,setCfg]=useState({});
 
-  useEffect(()=>{ api.co2Analytics().then(r=>setData(r.data||MOCK.co2Analytics)).catch(()=>{}); },[]);
+  useEffect(()=>{
+    api.co2Analytics().then(r=>setData(r.data||r)).catch(()=>setData({})).finally(()=>setLoading(false));
+  },[]);
 
   const saveConfig = async () => {
     try {
       await api.saveCo2Config(cfg);
       const r=await api.co2Analytics(); setData(r.data||data);
       toast("CO₂ config saved!","success");
-    } catch { toast("Saved (offline mode)","success"); }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setEditConfig(false);
   };
 
-  const cfg_ = data.config||{};
+  const cfg_ = data?.config||{};
+
+  if(loading) return <div style={{ display:"flex", justifyContent:"center", padding:60 }}><Spinner/></div>;
 
   return (
     <div>
@@ -1152,10 +1118,10 @@ const Co2Analytics = ({ toast }) => {
       </PH>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
-        <Stat label="kg CO₂ Saved" value={(data.totalCo2SavedKg||0).toFixed(1)} icon="🌿" accent={C.greenMid}/>
-        <Stat label="Tree Equivalent" value={(data.treeEquivalent||0).toFixed(0)} icon="🌳" accent={C.green}/>
-        <Stat label="Total Eco Trips" value={(data.totalEcoTrips||0).toLocaleString()} icon="⟁" accent={C.greenBrt}/>
-        <Stat label="Avg CO₂/Trip" value={`${data.avgCo2GramsPerTrip||0}g`} icon="📊" accent={C.lime}/>
+        <Stat label="kg CO₂ Saved" value={(data?.totalCo2SavedKg||0).toFixed(1)} icon="🌿" accent={C.greenMid}/>
+        <Stat label="Tree Equivalent" value={(data?.treeEquivalent||0).toFixed(0)} icon="🌳" accent={C.green}/>
+        <Stat label="Total Eco Trips" value={(data?.totalEcoTrips||0).toLocaleString()} icon="⟁" accent={C.greenBrt}/>
+        <Stat label="Avg CO₂/Trip" value={`${data?.avgCo2GramsPerTrip||0}g`} icon="📊" accent={C.lime}/>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:16 }}>
@@ -1166,10 +1132,10 @@ const Co2Analytics = ({ toast }) => {
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
             {[
-              ["Total CO₂ Saved",`${(data.totalCo2SavedKg||0).toFixed(2)} kg`,C.greenMid,"Compared to equivalent ICE vehicle trips"],
-              ["Tree Equivalent",`${(data.treeEquivalent||0).toFixed(1)} trees`,C.green,"Annual carbon absorption equivalent"],
-              ["Total Eco Trips",(data.totalEcoTrips||0).toLocaleString(),C.greenBrt,"Completed rides on the platform"],
-              ["Avg CO₂ per Trip",`${data.avgCo2GramsPerTrip||0}g`,C.lime,"Average savings per completed trip"],
+              ["Total CO₂ Saved",`${(data?.totalCo2SavedKg||0).toFixed(2)} kg`,C.greenMid,"Compared to equivalent ICE vehicle trips"],
+              ["Tree Equivalent",`${(data?.treeEquivalent||0).toFixed(1)} trees`,C.green,"Annual carbon absorption equivalent"],
+              ["Total Eco Trips",(data?.totalEcoTrips||0).toLocaleString(),C.greenBrt,"Completed rides on the platform"],
+              ["Avg CO₂ per Trip",`${data?.avgCo2GramsPerTrip||0}g`,C.lime,"Average savings per completed trip"],
             ].map(([l,v,col,desc])=>(
               <div key={l} style={{ background:"#fff", borderRadius:12, padding:16, borderLeft:`3px solid ${col}` }}>
                 <div className="serif" style={{ fontSize:26, fontWeight:600, color:col, marginBottom:4 }}>{v}</div>
@@ -1221,22 +1187,26 @@ const Co2Analytics = ({ toast }) => {
   );
 };
 
-// ─── ECO+ SUBSCRIPTION (new page) ─────────────────────────────────────────
+// ─── ECO+ SUBSCRIPTION ─────────────────────────────────────────────────────
 const EcoPlus = ({ toast }) => {
   const [tab,setTab]=useState("overview");
-  const [overview,setOverview]=useState(MOCK.ecoPlusOverview);
-  const [plans,setPlans]=useState(MOCK.ecoPlusPlans);
-  const [subs,setSubs]=useState(MOCK.ecoPlusSubs);
+  const [overview,setOverview]=useState(null);
+  const [plans,setPlans]=useState([]);
+  const [subs,setSubs]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [subFilter,setSubFilter]=useState("");
   const [editPlan,setEditPlan]=useState(null);
   const [pf,setPf]=useState({});
 
   useEffect(()=>{
-    api.ecoPlusOverview().then(r=>setOverview(r.data||MOCK.ecoPlusOverview)).catch(()=>{});
-    api.ecoPlusPlans().then(r=>setPlans(r.data?.plans||MOCK.ecoPlusPlans)).catch(()=>{});
+    Promise.all([
+      api.ecoPlusOverview().then(r=>setOverview(r.data||{})),
+      api.ecoPlusPlans().then(r=>setPlans(r.data?.plans||r.data||[])),
+    ]).catch(()=>{}).finally(()=>setLoading(false));
   },[]);
+
   useEffect(()=>{
-    api.ecoPlusSubs({status:subFilter}).then(r=>setSubs(r.data||MOCK.ecoPlusSubs)).catch(()=>{});
+    api.ecoPlusSubs({status:subFilter}).then(r=>setSubs(r.data||[])).catch(()=>setSubs([]));
   },[subFilter]);
 
   const savePlan = async () => {
@@ -1246,11 +1216,7 @@ const EcoPlus = ({ toast }) => {
       if(editPlan==="new") setPlans(p=>[...p,saved]);
       else setPlans(p=>p.map(x=>x.id===editPlan?saved:x));
       toast("Plan saved!","success");
-    } catch {
-      if(editPlan==="new") setPlans(p=>[...p,{...pf,id:"pl-"+Date.now(),isActive:true}]);
-      else setPlans(p=>p.map(x=>x.id===editPlan?{...x,...pf}:x));
-      toast("Plan saved!","success");
-    }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setEditPlan(null);
   };
 
@@ -1261,8 +1227,9 @@ const EcoPlus = ({ toast }) => {
   };
 
   const fmtN = (kobo)=>`₦${((kobo||0)/100).toLocaleString("en-NG")}`;
-
   const TABS=[{id:"overview",label:"Overview"},{id:"subscribers",label:"Subscribers"},{id:"plans",label:"Plans"}];
+
+  if(loading) return <div style={{ display:"flex", justifyContent:"center", padding:60 }}><Spinner/></div>;
 
   return (
     <div>
@@ -1279,13 +1246,13 @@ const EcoPlus = ({ toast }) => {
       {tab==="overview"&&(
         <div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:20 }}>
-            <Stat label="Active Subscribers" value={(overview.totalActive||0).toLocaleString()} icon="★" accent={C.greenMid}/>
-            <Stat label="Cancelled" value={(overview.cancelled||0).toLocaleString()} icon="↺" accent={C.red}/>
-            <Stat label="Total Revenue" value={`₦${((overview.totalRevenueNaira||0)/1000).toFixed(0)}k`} icon="₦" accent={C.amber}/>
-            <Stat label="MRR" value={`₦${((overview.mrrNaira||0)/1000).toFixed(0)}k`} icon="↗" accent={C.blue}/>
+            <Stat label="Active Subscribers" value={(overview?.totalActive||0).toLocaleString()} icon="★" accent={C.greenMid}/>
+            <Stat label="Cancelled" value={(overview?.cancelled||0).toLocaleString()} icon="↺" accent={C.red}/>
+            <Stat label="Total Revenue" value={`₦${((overview?.totalRevenueNaira||0)/1000).toFixed(0)}k`} icon="₦" accent={C.amber}/>
+            <Stat label="MRR" value={`₦${((overview?.mrrNaira||0)/1000).toFixed(0)}k`} icon="↗" accent={C.blue}/>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
-            {[["New Today",(overview.newSubscribers?.today||0)],["This Week",(overview.newSubscribers?.thisWeek||0)],["This Month",(overview.newSubscribers?.thisMonth||0)]].map(([l,v])=>(
+            {[["New Today",(overview?.newSubscribers?.today||0)],["This Week",(overview?.newSubscribers?.thisWeek||0)],["This Month",(overview?.newSubscribers?.thisMonth||0)]].map(([l,v])=>(
               <Card key={l}>
                 <div style={{ fontSize:11, color:C.textMid, textTransform:"uppercase", letterSpacing:".06em", marginBottom:6 }}>New Subscribers — {l}</div>
                 <div className="serif" style={{ fontSize:36, fontWeight:600, color:C.greenMid }}>{v}</div>
@@ -1309,35 +1276,37 @@ const EcoPlus = ({ toast }) => {
               { key:"next",    label:"Next Billing",render:r=>r.nextBillingAt?new Date(r.nextBillingAt).toLocaleDateString("en-NG"):<span style={{ color:C.muted }}>—</span> },
               { key:"billed",  label:"Total Billed",render:r=><span className="mono">₦{((r.totalBilled||0)/100).toLocaleString()}</span> },
               { key:"act",     label:"",           render:r=>r.status==="active"?<Btn size="sm" v="danger" onClick={()=>cancelSub(r.id)}>Cancel</Btn>:null },
-            ]} data={subs}/>
+            ]} data={subs} emptyMsg="No subscribers found"/>
           </Card>
         </div>
       )}
 
       {tab==="plans"&&(
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:14 }}>
-          {plans.map(p=>(
-            <Card key={p.id} style={{ borderTop:`3px solid ${C.greenMid}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
-                <div>
-                  <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
-                  <div style={{ fontSize:12, color:C.textSub, marginTop:2 }}>{p.description}</div>
+          {plans.length===0 ? <Empty msg="No plans created yet"/> :
+            plans.map(p=>(
+              <Card key={p.id} style={{ borderTop:`3px solid ${C.greenMid}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:12 }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:15 }}>{p.name}</div>
+                    <div style={{ fontSize:12, color:C.textSub, marginTop:2 }}>{p.description}</div>
+                  </div>
+                  <Btn v="ghost" size="sm" onClick={()=>{setPf(p);setEditPlan(p.id);}}>Edit</Btn>
                 </div>
-                <Btn v="ghost" size="sm" onClick={()=>{setPf(p);setEditPlan(p.id);}}>Edit</Btn>
-              </div>
-              <div className="serif" style={{ fontSize:28, fontWeight:600, color:C.green, marginBottom:8 }}>
-                {fmtN(p.priceKobo)} <span style={{ fontSize:13, fontWeight:400, color:C.textMid }}>/{p.intervalDays===30?"mo":"yr"}</span>
-              </div>
-              <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
-                <Badge color={C.greenMid}>{p.discountPct}% off rides</Badge>
-                {p.priorityRides&&<Badge color={C.blue}>Priority</Badge>}
-                <SB s={p.isActive?"active":"offline"}/>
-              </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                {(p.benefits||[]).map((b,i)=><div key={i} style={{ fontSize:12, color:C.textMid }}>🌿 {b}</div>)}
-              </div>
-            </Card>
-          ))}
+                <div className="serif" style={{ fontSize:28, fontWeight:600, color:C.green, marginBottom:8 }}>
+                  {fmtN(p.priceKobo)} <span style={{ fontSize:13, fontWeight:400, color:C.textMid }}>/{p.intervalDays===30?"mo":"yr"}</span>
+                </div>
+                <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                  <Badge color={C.greenMid}>{p.discountPct}% off rides</Badge>
+                  {p.priorityRides&&<Badge color={C.blue}>Priority</Badge>}
+                  <SB s={p.isActive?"active":"offline"}/>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  {(p.benefits||[]).map((b,i)=><div key={i} style={{ fontSize:12, color:C.textMid }}>🌿 {b}</div>)}
+                </div>
+              </Card>
+            ))
+          }
         </div>
       )}
 
@@ -1370,16 +1339,15 @@ const EcoPlus = ({ toast }) => {
 
 // ─── ADMIN TEAM ────────────────────────────────────────────────────────────
 const Team = ({ toast }) => {
-  const [rows,setRows]=useState(MOCK.team);
-  const [roles,setRoles]=useState([]);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [modal,setModal]=useState(false);
   const [permModal,setPermModal]=useState(null);
   const [form,setForm]=useState({});
   const [perms,setPerms]=useState([]);
 
   useEffect(()=>{
-    api.team().then(r=>setRows(r.data||MOCK.team)).catch(()=>{});
-    api.roles().then(r=>setRoles(r.data?.roles||[])).catch(()=>{});
+    api.team().then(r=>setRows(r.data||[])).catch(()=>setRows([])).finally(()=>setLoading(false));
   },[]);
 
   const RC=r=>({superadmin:C.green,ops:C.blue,finance:C.amber,support:C.greenMid,readonly:C.muted})[r]||C.muted;
@@ -1389,10 +1357,7 @@ const Team = ({ toast }) => {
       await api.inviteAdmin(form);
       const r=await api.team(); setRows(r.data||rows);
       toast("Invite sent!","success");
-    } catch {
-      setRows(r=>[...r,{...form,id:"adm-"+Date.now(),role:{name:form.role||"readonly"},isActive:true,lastLogin:null}]);
-      toast("Invite sent!","success");
-    }
+    } catch(e) { toast(e.message||"Invite failed","error"); }
     setModal(false);setForm({});
   };
 
@@ -1402,22 +1367,18 @@ const Team = ({ toast }) => {
     toast("Admin disabled","success");
   };
 
-  const openPerms = (admin) => {
-    setPermModal(admin);
-    setPerms(admin.role?.permissions||[]);
-  };
+  const openPerms = (admin) => { setPermModal(admin); setPerms(admin.role?.permissions||[]); };
 
   const savePerms = async () => {
     try{
       await api.updatePerms(permModal.role?.id,perms);
       toast("Permissions updated!","success");
-    } catch { toast("Saved (offline mode)","success"); }
+    } catch(e) { toast(e.message||"Save failed","error"); }
     setPermModal(null);
   };
 
   const RESOURCES=["riders","drivers","trips","fare","payments","refunds","tickets","promotions","co2","ecoplus","admin","audit","notifications"];
   const ACTIONS=["read","write","approve","manage"];
-
   const hasPerm=(res,action)=>perms.some(p=>p.resource===res&&p.action===action);
   const togglePerm=(res,action)=>{
     if(hasPerm(res,action)) setPerms(p=>p.filter(x=>!(x.resource===res&&x.action===action)));
@@ -1442,7 +1403,7 @@ const Team = ({ toast }) => {
       <PH title="Admin Team" sub="Manage admin accounts and role permissions">
         <Btn v="primary" onClick={()=>setModal(true)}>+ Invite Admin</Btn>
       </PH>
-      <Card pad={0}><Table columns={cols} data={rows}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No team members found"/></Card>
 
       {modal&&(
         <Modal title="Invite Admin" onClose={()=>setModal(false)}>
@@ -1498,15 +1459,16 @@ const Team = ({ toast }) => {
 
 // ─── AUDIT LOG ─────────────────────────────────────────────────────────────
 const Audit = () => {
-  const [rows,setRows]=useState(MOCK.auditLogs);
-  useEffect(()=>{ api.auditLogs({}).then(r=>setRows(r.data||MOCK.auditLogs)).catch(()=>{}); },[]);
+  const [rows,setRows]=useState([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{ api.auditLogs({}).then(r=>setRows(r.data||[])).catch(()=>setRows([])).finally(()=>setLoading(false)); },[]);
 
   const AC=a=>{ if(!a)return C.muted; if(a.includes("APPROV")||a.includes("INVIT"))return C.greenMid; if(a.includes("REJECT")||a.includes("DISABL"))return C.red; if(a.includes("UPDATE")||a.includes("CREATE")||a.includes("LOGIN"))return C.blue; return C.muted; };
 
   const cols = [
     { key:"time",     label:"Time",       render:r=><span className="mono" style={{ fontSize:11 }}>{new Date(r.createdAt).toLocaleString("en-NG")}</span> },
-    { key:"admin",    label:"Admin",      render:r=>`${r.admin?.firstName} ${r.admin?.lastName}` },
-    { key:"action",   label:"Action",     render:r=><Badge color={AC(r.action)}>{r.action.replace(/_/g," ")}</Badge> },
+    { key:"admin",    label:"Admin",      render:r=>`${r.admin?.firstName||""} ${r.admin?.lastName||""}` },
+    { key:"action",   label:"Action",     render:r=><Badge color={AC(r.action)}>{r.action?.replace(/_/g," ")}</Badge> },
     { key:"resource", label:"Resource",   render:r=><span style={{ color:C.textMid }}>{r.resource}</span> },
     { key:"resId",    label:"ID",         render:r=><span className="mono" style={{ fontSize:11, color:C.muted }}>{r.resourceId}</span> },
   ];
@@ -1514,7 +1476,7 @@ const Audit = () => {
   return (
     <div>
       <PH title="Audit Log" sub="Complete record of all admin actions"/>
-      <Card pad={0}><Table columns={cols} data={rows}/></Card>
+      <Card pad={0}><Table columns={cols} data={rows} loading={loading} emptyMsg="No audit logs yet"/></Card>
     </div>
   );
 };
@@ -1528,12 +1490,9 @@ const Notifications = ({ toast }) => {
     if(!form.subject||!form.body){toast("Subject and body required","warn");return;}
     try {
       const r=await api.sendBulk(form);
-      setSent(r.data?.sent||(form.targetRole==="rider"?4821:form.targetRole==="driver"?342:5163));
-      toast(`Sent successfully!`,"success");
-    } catch {
-      const count=form.targetRole==="rider"?4821:form.targetRole==="driver"?342:5163;
-      setSent(count);toast(`Sent to ${count.toLocaleString()} users!`,"success");
-    }
+      setSent(r.data?.sent||0);
+      toast("Sent successfully!","success");
+    } catch(e) { toast(e.message||"Send failed","error"); }
     setForm({targetRole:"",subject:"",body:""});
   };
 
@@ -1548,7 +1507,7 @@ const Notifications = ({ toast }) => {
             <Input label="Subject" value={form.subject} onChange={v=>setForm(p=>({...p,subject:v}))} placeholder="Important update from Eco"/>
             <div>
               <label style={{ fontSize:11, fontWeight:600, color:C.textMid, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:".06em" }}>Message</label>
-              <textarea value={form.body} onChange={e=>setForm(p=>({...p,body:e.target.value}))} placeholder="Use code VLTN for 30% off your next ride."
+              <textarea value={form.body} onChange={e=>setForm(p=>({...p,body:e.target.value}))} placeholder="Your message here…"
                 style={{ width:"100%", minHeight:150, background:C.bgMid, border:`1px solid ${C.borderDk}`, borderRadius:10, padding:"10px 13px", color:C.text, fontSize:13, resize:"vertical" }}/>
             </div>
             <Btn v="primary" size="lg" onClick={send} style={{ width:"100%", justifyContent:"center" }}>Send Notification →</Btn>
@@ -1563,19 +1522,13 @@ const Notifications = ({ toast }) => {
               <div style={{ fontSize:13, color:"#ffffff80", lineHeight:1.6, whiteSpace:"pre-wrap" }}>{form.body||"Message body…"}</div>
             </div>
           </Card>
-          {sent&&(
+          {sent!==null&&(
             <Card style={{ background:"#f0f7ec", border:`1px solid ${C.greenMid}33` }}>
               <div className="serif" style={{ fontWeight:600, fontSize:14, color:C.greenMid, marginBottom:6 }}>✓ Message Delivered</div>
               <div className="serif" style={{ fontSize:40, fontWeight:600, color:C.green }}>{sent.toLocaleString()}</div>
               <div style={{ fontSize:12, color:C.textMid }}>users reached</div>
             </Card>
           )}
-          <Card>
-            <div className="serif" style={{ fontWeight:600, fontSize:14, marginBottom:12 }}>Best Practices</div>
-            {["Keep messages concise and action-oriented","Include promo codes in ALL CAPS (e.g. XMAS, VLTN)","State expiry dates clearly","Avoid more than 2 bulk messages per day"].map((g,i)=>(
-              <div key={i} style={{ display:"flex", gap:8, marginBottom:8, fontSize:13, color:C.textMid }}><span style={{ color:C.greenMid }}>🌿</span> {g}</div>
-            ))}
-          </Card>
         </div>
       </div>
     </div>
@@ -1592,7 +1545,7 @@ export default function App() {
     try {
       const payload=JSON.parse(atob(t.split(".")[1]));
       return { email:payload.email, role:payload.role };
-    } catch { return { email:"admin@eco.com", role:"superadmin" }; }
+    } catch { return null; }
   });
 
   useEffect(()=>{
@@ -1610,7 +1563,9 @@ export default function App() {
     return (
       <>
         <GlobalStyle/>
-        <Login onLogin={(admin)=>setAdminInfo(admin)}/>
+        <Login onLogin={(admin)=>{
+          setAdminInfo({ email:admin.email, role:admin.role?.name||admin.role||"admin" });
+        }}/>
       </>
     );
   }
