@@ -1,88 +1,124 @@
-// ─── ECO ADMIN · API SERVICE LAYER ───────────────────────────────────────────
-// Place in src/api.js alongside App.jsx
-// Set VITE_API_URL in your .env (defaults to http://localhost:9000/api)
+// ── Centralized API Client ─────────────────────────────────────────────────
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
-const BASE_URL  = import.meta.env.VITE_API_URL || "http://localhost:9000/api";
-const TOKEN_KEY = "eco_admin_token";
+function getToken() { return localStorage.getItem('eco_admin_token'); }
+
+export function setToken(t) {
+  if (t) localStorage.setItem('eco_admin_token', t);
+  else localStorage.removeItem('eco_admin_token');
+}
+
+async function request(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE}${path}`, {
+    method, headers, ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (res.status === 401) {
+    setToken(null);
+    window.dispatchEvent(new Event('eco:unauthorized'));
+    throw new Error('Unauthorized');
+  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+const qs = (q) => {
+  const params = Object.fromEntries(
+    Object.entries(q).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+  );
+  return Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : '';
+};
 
 const api = {
-  getToken:   ()    => localStorage.getItem(TOKEN_KEY),
-  setToken:   (t)   => localStorage.setItem(TOKEN_KEY, t),
-  clearToken: ()    => localStorage.removeItem(TOKEN_KEY),
+  setToken,
 
-  headers() {
-    const h = { "Content-Type": "application/json" };
-    const t = this.getToken();
-    if (t) h["Authorization"] = `Bearer ${t}`;
-    return h;
-  },
+  // Auth
+  login: (body) => request('POST', '/admin/login', body),
 
-  async request(method, path, body) {
-    const res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: this.headers(),
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-    if (res.status === 401) {
-      this.clearToken();
-      window.dispatchEvent(new Event("eco:unauthorized"));
-    }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
-    return data;
-  },
+  // Dashboard
+  dashboard:     () => request('GET', '/admin/dashboard'),
+  activeTrips:   () => request('GET', '/admin/dashboard/active-trips'),
+  onlineDrivers: () => request('GET', '/admin/dashboard/online-drivers'),
 
-  get:   (path)        => api.request("GET",   path),
-  post:  (path, body)  => api.request("POST",  path, body),
-  put:   (path, body)  => api.request("PUT",   path, body),
-  patch: (path, body)  => api.request("PATCH", path, body),
+  // Analytics
+  analytics: (period) => request('GET', `/admin/analytics?period=${period || '7d'}`),
 
-  qs(params) {
-    const q = new URLSearchParams();
-    Object.entries(params || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") q.set(k, v);
-    });
-    return q.toString() ? `?${q}` : "";
-  },
+  // Riders  (alias: riders = listRiders)
+  riders:      (q = {}) => request('GET', `/admin/riders${qs(q)}`),
+  listRiders:  (q = {}) => request('GET', `/admin/riders${qs(q)}`),
+  getRider:    (id)     => request('GET', `/admin/riders/${id}`),
+  blockUser:   (id, reason) => request('PUT', `/admin/riders/${id}/block`, { reason }),
+  unblockUser: (id)         => request('PUT', `/admin/riders/${id}/unblock`),
 
-  login:            (body)          => api.post("/admin/login", body),
-  dashboard:        ()              => api.get("/admin/dashboard"),
-  activeTrips:      ()              => api.get("/admin/dashboard/active-trips"),
-  onlineDrivers:    ()              => api.get("/admin/dashboard/online-drivers"),
-  analytics:        (period)        => api.get(`/admin/analytics?period=${period}`),
-  riders:           (q)             => api.get(`/admin/riders${api.qs(q)}`),
-  blockUser:        (id, reason)    => api.put(`/admin/riders/${id}/block`,   { reason }),
-  unblockUser:      (id)            => api.put(`/admin/riders/${id}/unblock`),
-  drivers:          (q)             => api.get(`/admin/drivers${api.qs(q)}`),
-  approveDriver:    (id)            => api.put(`/admin/drivers/${id}/approve`),
-  trips:            (q)             => api.get(`/admin/trips${api.qs(q)}`),
-  fareRules:        ()              => api.get("/admin/fare-rules"),
-  saveFareRule:     (body)          => api.post("/admin/fare-rules", body),
-  surgeRules:       ()              => api.get("/admin/surge-rules"),
-  saveSurgeRule:    (body)          => api.post("/admin/surge-rules", body),
-  payments:         (q)             => api.get(`/admin/finance${api.qs(q)}`),
-  refunds:          (q)             => api.get(`/admin/refunds${api.qs(q)}`),
-  approveRefund:    (id, notes)     => api.put(`/admin/refunds/${id}/approve`, { notes }),
-  rejectRefund:     (id, notes)     => api.put(`/admin/refunds/${id}/reject`,  { notes }),
-  promotions:       ()              => api.get("/admin/promotions"),
-  createPromo:      (body)          => api.post("/admin/promotions", body),
-  updatePromo:      (id, body)      => api.patch(`/admin/promotions/${id}`, body),
-  tickets:          (q)             => api.get(`/admin/tickets${api.qs(q)}`),
-  resolveTicket:    (id, resolution)=> api.put(`/admin/tickets/${id}/resolve`, { resolution }),
-  replyTicket:      (id, message)   => api.post(`/admin/tickets/${id}/reply`,  { message }),
-  team:             ()              => api.get("/admin/team"),
-  inviteAdmin:      (body)          => api.post("/admin/team/invite", body),
-  disableAdmin:     (id)            => api.put(`/admin/team/${id}/disable`),
-  updatePerms:      (roleId, perms) => api.put(`/admin/team/roles/${roleId}/permissions`, { permissions: perms }),
-  auditLogs:        (q)             => api.get(`/admin/audit-logs${api.qs(q)}`),
-  co2Analytics:     ()              => api.get("/admin/co2/analytics"),
-  saveCo2Config:    (body)          => api.post("/admin/co2/config", body),
-  ecoPlusPlans:     ()              => api.get("/admin/ecoplus/plans"),
-  saveEcoPlusPlan:  (body)          => api.post("/admin/ecoplus/plans", body),
-  ecoPlusOverview:  ()              => api.get("/admin/ecoplus/overview"),
-  ecoPlusSubs:      (q)             => api.get(`/admin/ecoplus/subscribers${api.qs(q)}`),
-  cancelSub:        (id)            => api.put(`/admin/ecoplus/subscribers/${id}/cancel`),
-  sendBulk:         (body)          => api.post("/admin/notifications/send-bulk", body),
+  // Drivers (alias: drivers = listDrivers)
+  drivers:      (q = {}) => request('GET', `/admin/drivers${qs(q)}`),
+  listDrivers:  (q = {}) => request('GET', `/admin/drivers${qs(q)}`),
+  getDriver:    (id)     => request('GET', `/admin/drivers/${id}`),
+  approveDriver:(id)     => request('PUT', `/admin/drivers/${id}/approve`),
+  blockDriver:  (id, reason) => request('PUT', `/admin/drivers/${id}/block`, { reason }),
+
+  // Trips (alias: trips = listTrips)
+  trips:     (q = {}) => request('GET', `/admin/trips${qs(q)}`),
+  listTrips: (q = {}) => request('GET', `/admin/trips${qs(q)}`),
+
+  // Fare engine
+  fareRules:     ()     => request('GET',  '/admin/fare-rules'),
+  saveFareRule:  (body) => request('POST', '/admin/fare-rules', body),
+  surgeRules:    ()     => request('GET',  '/admin/surge-rules'),
+  saveSurgeRule: (body) => request('POST', '/admin/surge-rules', body),
+
+  // Finance / Payments (alias: payments = listFinance)
+  payments:    (q = {}) => request('GET', `/admin/finance${qs(q)}`),
+  listFinance: (q = {}) => request('GET', `/admin/finance${qs(q)}`),
+
+  // Refunds (alias: refunds = listRefunds)
+  refunds:       (q = {}) => request('GET', `/admin/refunds${qs(q)}`),
+  listRefunds:   (q = {}) => request('GET', `/admin/refunds${qs(q)}`),
+  approveRefund: (id, notes) => request('PUT', `/admin/refunds/${id}/approve`, { notes }),
+  rejectRefund:  (id, notes) => request('PUT', `/admin/refunds/${id}/reject`, { notes }),
+
+  // Tickets (alias: tickets = listTickets)
+  tickets:       (q = {})      => request('GET',  `/admin/tickets${qs(q)}`),
+  listTickets:   (q = {})      => request('GET',  `/admin/tickets${qs(q)}`),
+  assignTicket:  (id, toId)    => request('PUT',  `/admin/tickets/${id}/assign`, { assignToAdminId: toId }),
+  resolveTicket: (id, res)     => request('PUT',  `/admin/tickets/${id}/resolve`, { resolution: res }),
+  replyTicket:   (id, msg)     => request('POST', `/admin/tickets/${id}/reply`, { message: msg }),
+
+  // Team & RBAC (aliases: team = listAdmins, roles = listRoles)
+  team:        ()              => request('GET',  '/admin/team'),
+  listAdmins:  ()              => request('GET',  '/admin/team'),
+  roles:       ()              => request('GET',  '/admin/team/roles'),
+  listRoles:   ()              => request('GET',  '/admin/team/roles'),
+  inviteAdmin: (body)          => request('POST', '/admin/team/invite', body),
+  disableAdmin:(id)            => request('PUT',  `/admin/team/${id}/disable`),
+  updatePerms: (roleId, perms) => request('PUT',  `/admin/team/roles/${roleId}/permissions`, { permissions: perms }),
+
+  // Audit
+  auditLogs: (q = {}) => request('GET', `/admin/audit-logs${qs(q)}`),
+
+  // Promotions (aliases: promotions = listPromos)
+  promotions:   ()         => request('GET',   '/admin/promotions'),
+  listPromos:   ()         => request('GET',   '/admin/promotions'),
+  createPromo:  (body)     => request('POST',  '/admin/promotions', body),
+  updatePromo:  (id, body) => request('PATCH', `/admin/promotions/${id}`, body),
+
+  // CO2
+  co2Config:    ()     => request('GET',  '/admin/co2/config'),
+  saveCo2Config:(body) => request('POST', '/admin/co2/config', body),
+  co2Analytics: ()     => request('GET',  '/admin/co2/analytics'),
+
+  // Eco+
+  ecoPlusPlans:    ()       => request('GET',  '/admin/ecoplus/plans'),
+  saveEcoPlusPlan: (body)   => request('POST', '/admin/ecoplus/plans', body),
+  ecoPlusOverview: ()       => request('GET',  '/admin/ecoplus/overview'),
+  ecoPlusSubs:     (q = {}) => request('GET',  `/admin/ecoplus/subscribers${qs(q)}`),
+  cancelSub:       (id)     => request('PUT',  `/admin/ecoplus/subscribers/${id}/cancel`),
+
+  // Notifications
+  sendBulk: (body) => request('POST', '/admin/notifications/send-bulk', body),
 };
 
 export default api;
